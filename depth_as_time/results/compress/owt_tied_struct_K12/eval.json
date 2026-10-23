@@ -1,0 +1,97 @@
+{
+ "name": "owt_tied_struct_K12",
+ "args": {
+  "teacher": "FMLM-B-OWT",
+  "variant": "tied_struct",
+  "K": null,
+  "split": 7,
+  "groups": "0|1-3|4|5-10|11",
+  "init": "auto",
+  "log_every": 1000,
+  "steps": 150000,
+  "batch_size": 4,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 128,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "openai-community/gpt2",
+  "seed": 0,
+  "out": "results/compress"
+ },
+ "init": [
+  0,
+  2,
+  4,
+  6,
+  11
+ ],
+ "n_teacher": 169676626,
+ "n_student": 116031570,
+ "n_trainable": 38487296,
+ "log": [
+  {
+   "agree_teacher": 0.7843780517578125,
+   "kl_teacher": 0.37935950607061386,
+   "gen_ppl": 178.28747489419973,
+   "entropy": 5.0308973379433155,
+   "gen_ppl_teacher": 169.72871328132481,
+   "entropy_teacher": 5.165729120373726,
+   "sample": "<|endoftext|> whether for government like withoutb or something so, \u201cWe will be an \u2013 over to it but behind the I as U.S. had have a single office of Congress.\u201d ( so one in the mind) to stand up at 8 when the I was not able to.",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.7975311279296875,
+   "kl_teacher": 0.3306996375322342,
+   "gen_ppl": 175.51977436836,
+   "entropy": 5.041509095579386,
+   "gen_ppl_teacher": 169.72871328132481,
+   "entropy_teacher": 5.165729120373726,
+   "sample": "<|endoftext|> the for government like withoutb or even so, \u201cWe will be an away over to it but behind the I as U.S. had have a single office of Congress.\u201d ( first one in the mind is to stand up at 8 when the I was not able to.",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.8029022216796875,
+   "kl_teacher": 0.3106428012251854,
+   "gen_ppl": 173.6971825097196,
+   "entropy": 5.04790061712265,
+   "gen_ppl_teacher": 169.72871328132481,
+   "entropy_teacher": 5.165729120373726,
+   "sample": "<|endoftext|> the for government like withoutb or even so, \u201cWe will be an away over to it but behind the I as U.S. had have a single members of Congress.\u201d ( first one in the mind) to stand up at 8 when the I was not able to.",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.8070297241210938,
+   "kl_teacher": 0.29691891372203827,
+   "gen_ppl": 172.7002913584724,
+   "entropy": 5.0529351979494095,
+   "gen_ppl_teacher": 169.72871328132481,
+   "entropy_teacher": 5.165729120373726,
+   "sample": "<|endoftext|> the for government like withoutb or even so, \u201cWe will be an away over to it but behind the I as U.S. had have a single members of Congress.\u201d ( first one in the mind) to stand up at everyone when the I was not able to.",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.8094863891601562,
+   "kl_teacher": 0.2873980551958084,
+   "gen_ppl": 172.9884941257456,
+   "entropy": 5.058893270790577,
+   "gen_ppl_teacher": 169.72871328132481,
+   "entropy_teacher": 5.165729120373726,
+   "sample": "<|endoftext|> the for government like withoutb or even so, \u201cWe will be an away over to it but behind the same as U.S. had have never single members of Congress.\u201d ( first one in the mind) to stand up at 8 when the I was not able to.",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.812042236328125,
+   "kl_teacher": 0.27967315912246704,
+   "gen_ppl": 171.47318728036367,
+   "entropy": 5.057921763509512,
+   "gen_ppl_teacher": 169.72871328132481,
+   "entropy_teacher": 5.165729120373726,
+   "sample": "<|endoftext|> whether for government like withoutb or even so, \u201cWe will be an away above to it but behind the same as U.S. had have a single members of Congress.\u201d ( first one in the US) to stand up at 8 when the I was not able to.",
+   "step": 150000
+  }
+ ]
+}

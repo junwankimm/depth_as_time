@@ -1,0 +1,94 @@
+{
+ "name": "lm1b_untied_K1",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "untied",
+  "K": 1,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 1000,
+  "tag": "",
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress"
+ },
+ "init": [
+  1
+ ],
+ "n_teacher": 139342394,
+ "n_student": 54887738,
+ "n_trainable": 7677696,
+ "log": [
+  {
+   "agree_teacher": 0.439056396484375,
+   "kl_teacher": 2.556486576795578,
+   "gen_ppl": 92.8052062317493,
+   "entropy": 3.6094069043174386,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are not but this is have a in is have as with like and this a as with. [CLS] has for up are s \" the that that on, world and you be the the, it of and in year only but in the the up, that for that.",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.45745849609375,
+   "kl_teacher": 2.3832687735557556,
+   "gen_ppl": 101.3934590238238,
+   "entropy": 3.670625975355506,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are not but this is have a in that year as with like and this a week with. [CLS] has for up are s \" the that been., world said you be the the, much of and in years of in the the up, that for that will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.4698486328125,
+   "kl_teacher": 2.2976026833057404,
+   "gen_ppl": 102.2472733469131,
+   "entropy": 3.698694451712072,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s for are not but this is have a in that year : with like and this being as work. [CLS] has for up are s \" the have been than, world can only be the the, much of and in year better of in the the up, that for u.",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.47711181640625,
+   "kl_teacher": 2.246384918689728,
+   "gen_ppl": 103.25007165728036,
+   "entropy": 3.7225247407332063,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s for are not but this is have a in that year as with like and this being as work. [CLS] has for up are s \" the that been than the world can only on the the, much of and in be better of in the the up, that for u.",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.480621337890625,
+   "kl_teacher": 2.2037880420684814,
+   "gen_ppl": 105.71414088817076,
+   "entropy": 3.740267252549529,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s for are not but this is have a in that year as with like and this being as work. [CLS] has for up are s \" he have that on, world can only on the the, much of one in be better of in as the up, that for country '",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.486541748046875,
+   "kl_teacher": 2.1721383333206177,
+   "gen_ppl": 106.73769885241742,
+   "entropy": 3.751129785552621,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s for are not but this is have a in that year as with like and this being as work. [CLS] has for up are s \" he have that on, world can only on the obama, much of one in be better of in from the up, that for country '",
+   "step": 150000
+  }
+ ]
+}

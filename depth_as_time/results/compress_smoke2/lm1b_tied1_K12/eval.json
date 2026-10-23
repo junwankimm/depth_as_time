@@ -1,0 +1,43 @@
+{
+ "name": "lm1b_tied1_K12",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied1",
+  "K": null,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 100,
+  "steps": 1500,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 500,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 1500,
+  "n_eval": 64,
+  "ckpt_every": 1500,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress_smoke2"
+ },
+ "init": [
+  0
+ ],
+ "n_teacher": 139342394,
+ "n_student": 54986554,
+ "n_trainable": 7776512,
+ "log": [
+  {
+   "agree_teacher": 0.4215087890625,
+   "kl_teacher": 2.7067331075668335,
+   "gen_ppl": 83.20129947260118,
+   "entropy": 3.5602985098958015,
+   "gen_ppl_teacher": 114.68402885943132,
+   "entropy_teacher": 4.136703051626682,
+   "sample": "[CLS] [CLS] the that he for are [CLS] but this is have a in is have those with like and this a to '. [CLS] has for up are s \" he that, than the ) and - be the the, it of one in be only. in the the time, that for s in",
+   "step": 1500
+  }
+ ]
+}

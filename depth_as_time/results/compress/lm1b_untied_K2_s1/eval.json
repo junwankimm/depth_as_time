@@ -1,0 +1,95 @@
+{
+ "name": "lm1b_untied_K2_s1",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "untied",
+  "K": 2,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 1000,
+  "tag": "_s1",
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 1,
+  "out": "results/compress"
+ },
+ "init": [
+  1,
+  6
+ ],
+ "n_teacher": 139342394,
+ "n_student": 62565434,
+ "n_trainable": 15355392,
+ "log": [
+  {
+   "agree_teacher": 0.5833740234375,
+   "kl_teacher": 1.4566270262002945,
+   "gen_ppl": 178.06942122438423,
+   "entropy": 4.073443506844342,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are [CLS] but this is have a deal that mr both well like and this second the tuesday. [CLS] my for they are now \" around 5 through than the world can may on the house, much of one food the state washington in as this month, that for country will",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.59527587890625,
+   "kl_teacher": 1.386912077665329,
+   "gen_ppl": 176.5871546030265,
+   "entropy": 4.083227255381644,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are [CLS] but this is have a deal that mr both well like and this week as u. [CLS] and for they are now do around ( ( than the world can may on the house, much of one food the state washington in as this month, that for country will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.60247802734375,
+   "kl_teacher": 1.3518368005752563,
+   "gen_ppl": 177.2954868139461,
+   "entropy": 4.088208921253681,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are [CLS] but this is have a deal that mr both well like and this week as tuesday. [CLS] and for they are now as around have more than the world can may on the better, much of one food the future washington [CLS] as this month, that for country will",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.610382080078125,
+   "kl_teacher": 1.3090873956680298,
+   "gen_ppl": 177.60861024174838,
+   "entropy": 4.087636481970549,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are [CLS] but this is have a deal that mr both well like and this is in 1. [CLS] and for they are now team around have through than the world can may be the house, much of one food the state washington [CLS] as this month, that for country will",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.61956787109375,
+   "kl_teacher": 1.2779479175806046,
+   "gen_ppl": 179.9108173797276,
+   "entropy": 4.090926778502762,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the here s is are [CLS] but this is have a deal that mr both well like and this is in 1. [CLS] and for they are now team around have through than the world can may on the house, much of one in the state washington people as this month, that for country will",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.622833251953125,
+   "kl_teacher": 1.2555858194828033,
+   "gen_ppl": 179.33344444078537,
+   "entropy": 4.095245529897511,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are [CLS] but this is have a deal that mr both well like and this is in 1. [CLS] and for up are now \" around have through than the world can may be the house, much of one in the state washington people from this month, that for country will",
+   "step": 150000
+  }
+ ]
+}

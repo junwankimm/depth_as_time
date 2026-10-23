@@ -1,0 +1,433 @@
+<div class="wrap">
+<header>
+  <span class="eyebrow">Probe 리포트 · LM1B와 OpenWebText의 FLM / FMLM · 2026-10-20 업데이트</span>
+  <h1>FMLM에서의 Depth as Time</h1>
+  <p class="lede prose">Asiimwe et al. (arXiv:2610.03626)은 이미지 생성 모델이 multi-step denoising trajectory를 transformer 블록들에 걸쳐 펼쳐 놓는다고 보고했습니다. One-step 언어 flow map도 12개 블록에 걸쳐 같은 일을 할까요? FMLM의 모든 블록을 모델 자신의 output head로 디코딩해서, 같은 noise에서 출발한 FLM teacher의 128-step trajectory와 비교했습니다.</p>
+  <div class="meta">
+    <span>student: david3684/FMLM-B-LM1B</span><span>teacher: david3684/FLM-B-LM1B</span>
+    <span>|V| = 30,522 · L = 128 · 블록 12개</span><span>noise 샘플 256개</span>
+    <span>재현: david3684/FMLM-B-OWT, FLM-B-OWT (|V| = 50,257 · L = 1024)</span>
+  </div>
+</header>
+
+<section>
+  <span class="eyebrow">요약</span>
+  <div class="findings">
+    <div class="finding"><span class="verdict v-yes">재현됨</span><h3>Depth에 따라 단조롭게 진행</h3>
+      <p>최종 출력과의 일치율이 블록 0의 0.27에서 블록 12의 1.0까지 올라갑니다. 랜덤 linear probe는 블록 10까지 0 근처에 머물러서, 이 경향은 readout artifact가 아닙니다.</p></div>
+    <div class="finding"><span class="verdict v-yes">강하게 재현됨</span><h3>Denoise 후 renoise</h3>
+      <p>Noisy한 끝점을 요청하면, 네트워크는 중간 depth에서 깨끗한 문장으로 sharp해졌다가(블록 9의 엔트로피 0.86) 출력에서 요청된 target으로 다시 흐려집니다(5.11).</p></div>
+    <div class="finding"><span class="verdict v-part">부분적</span><h3>Depth가 teacher 시간을 따라감</h3>
+      <p>단조롭지만 뒤로 몰려 있습니다. 블록 0–6은 teacher 진행의 1%도 채우지 못하고, 마지막 3–5개 블록이 대부분의 토큰을 정합니다. 블록 7에서 갑자기 commit합니다.</p></div>
+    <div class="finding"><span class="verdict v-no">그대로는 안 옮겨짐</span><h3>Signal + Gaussian noise 혼합</h3>
+      <p>출력은 simplex 위에 있고 선형 noise 항이 없습니다. 언어에서 noise는 unigram 주변분포(blur)와 위치별 noise seeding의 형태로 나타납니다.</p></div>
+    <div class="finding"><span class="verdict v-yes">재현됨</span><h3>OpenWebText에서도 같은 그림</h3>
+      <p>Vocab이 다르고 문맥이 8배 긴 다른 체크포인트에서도 위의 성질이 모두 나타납니다. Commit은 두 블록 일찍(블록 5) 일어나고 전환이 더 매끄럽습니다.</p></div>
+    <div class="finding"><span class="verdict v-part">부분적</span><h3>Layer 재사용 (논문 Sec. 5)</h3>
+      <p>재사용은 강하게 압축할 때 효과가 있습니다. 전환 블록을 따로 둔 공유 블록 2개로 일치율 0.75가 나오는데, 공유 없는 네트워크는 같은 값을 내려면 블록이 4개, 즉 파라미터가 2배 필요합니다. 블록 6개에서는 공유 없는 네트워크가 거의 따라와서 재사용의 이득이 작습니다.</p></div>
+    <div class="finding"><span class="verdict v-yes">언어에서 새로 발견</span><h3>확신도 순서로, 고쳐 쓰며 결정</h3>
+      <p>토큰 단위로 보면 one-step 모델은 확신도 순서로 확정합니다(Spearman 0.65–0.68, 왼쪽→오른쪽 순서 없음). 토큰의 약 1/4이 전환 블록에서 한꺼번에 정해지고, 확정 전에 1–3번 바꿔 씁니다. 구두점·기능어가 먼저, 내용어는 전환 블록에서 정해지고, 먼저 정해진 토큰이 나중 토큰의 문맥이 됩니다(영향이 반대 방향의 2.3–3.2배).</p></div>
+    <div class="finding"><span class="verdict v-part">부분적</span><h3>Depth가 flow를 따라가도록 강제하기</h3>
+      <p>Toy에서는 블록마다 τ = i/L의 flow를 맞추게 하면 끝점 손해 거의 없이 stall이 사라집니다. LM1B에서는 불일치가 절반으로 줄고 블록 10–11에서 early exit가 가능해지지만, commit을 블록 8보다 앞당기지는 못합니다.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">방법</span>
+  <h2>Readout 방법</h2>
+  <div class="prose" style="display:grid;gap:14px">
+    <p>FLM은 one-hot 벡터 위의 연속 flow입니다: <span class="m">x_t = (1−t)·z + t·onehot(y)</span>. 여기서 <span class="m">z ∈ R^{128×30522}</span>는 Gaussian이고, t = 0이 noise, t = 1이 데이터입니다. FMLM은 두 시점 denoiser <span class="m">δ_{s,t}</span>를 학습합니다. One step (s, t) = (0, 1)에서는 그 출력이 <em>곧</em> 생성된 샘플입니다.</p>
+    <p>논문의 파라미터 없는 probe를 씁니다. Forward pass를 한 번 돌리고, 각 블록 뒤의 residual stream <span class="m">h_i</span>를 모델 자신의 최종 head와 같은 시간 conditioning으로 디코딩합니다. 결과 <span class="m">δ^i</span>는 128개 위치 각각에서 vocab 위의 분포입니다. 블록 12에서는 모델 출력과 정확히 같습니다.</p>
+  </div>
+  <div class="pipe" aria-label="Readout 파이프라인">
+    <span class="n">noise z</span><span class="a">→</span><span class="n">embed h₀</span><span class="a">→</span><span class="n">블록 1 … 블록 i</span><span class="a">→</span><span class="n hl">h_i</span><span class="a">→</span><span class="n hl">W_out(h_i; τ_s, τ_t)</span><span class="a">→</span><span class="n hl">softmax → δ^i</span><span class="a">→</span><span class="n">argmax 텍스트</span>
+  </div>
+  <div class="prose twocol" style="max-width:none">
+    <div style="display:grid;gap:8px"><h3>토큰 공간의 noise에는 두 얼굴이 있습니다</h3>
+      <ul class="plain">
+        <li><b>State x_t</b>는 일부 토큰이 랜덤 단어로 바뀐 문장처럼 읽힙니다. FLM의 시간 변수 τ는 정확히 이미 확정된 토큰의 비율입니다.</li>
+        <li><b>Clean prediction</b>은 blur처럼 읽힙니다. 확률 질량이 unigram 주변분포 쪽으로 퍼집니다. 완전한 noise에서 teacher는 <span class="m">"the the the , ."</span>를 예측하는데, 이미지의 평균 이미지에 해당하는 언어 버전입니다.</li>
+      </ul></div>
+    <div style="display:grid;gap:8px"><h3>기준자 (ruler)</h3>
+      <ul class="plain">
+        <li>같은 z에서 FLM teacher가 Euler 128 step을 밟습니다. 각 step의 clean prediction이 시간 축입니다.</li>
+        <li>블록마다 비교합니다: 최종 토큰과의 일치율, 최종 분포까지의 KL, 엔트로피(blur), 디코딩한 텍스트의 GPT-2 Large perplexity.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">블록별 디코딩</span>
+  <h2>각 블록이 생성할 문장</h2>
+  <p class="prose cap">Noise 샘플 하나에 대해, 128개 토큰 위치 중 처음 40개에서 각 블록 readout의 argmax를 보여 줍니다. Student 아래에는 같은 noise에서 출발한 teacher의 몇몇 샘플링 시점 clean prediction이 있습니다. 논문의 디코딩 이미지 행에 해당하는 언어 버전입니다.</p>
+  <div class="controls"><span>Noise 샘플</span>
+    <div class="seg" role="group" aria-label="샘플" id="sampleSeg">
+      <button type="button" id="smp0" aria-pressed="true" data-i="0">A</button>
+      <button type="button" id="smp1" aria-pressed="false" data-i="1">B</button>
+      <button type="button" id="smp2" aria-pressed="false" data-i="2">C</button>
+    </div></div>
+  <div class="key">
+    <span><span class="t f">token</span> 그 행의 최종 출력과 같은 토큰 (student 블록 12, 또는 teacher 마지막 step)</span>
+    <span><span class="t m">the</span> 완전한 noise에서의 주변분포가 예측하는 토큰 (filler)</span>
+    <span><span class="t o">token</span> 그 외</span>
+  </div>
+  <div class="gridwrap"><table class="tok" id="tokgrid"></table></div>
+  <ul class="plain prose">
+    <li><b>블록 0</b>도 이미 최종 토큰 일부를 배치합니다. 이 시점에는 문맥 없이 각 위치의 noise 벡터만 봅니다.</li>
+    <li><b>블록 2–6</b>은 filler가 많은 초안을 거의 바꾸지 않고 유지합니다.</li>
+    <li><b>블록 7</b>에서 내용어가 확정되고, <b>블록 10–12</b>가 문법과 일관성을 다듬습니다.</li>
+  </ul>
+</section>
+
+<section>
+  <span class="eyebrow">진행</span>
+  <h2>정규화된 남은 거리</h2>
+  <p class="prose cap">논문 Eq. 4: 각 trajectory의 자기 끝점까지의 거리를 trajectory 위 최댓값으로 나누고 샘플 256개에 걸쳐 평균했습니다. Student의 x축은 블록 / 12, teacher의 x축은 step / 128입니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_rho"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>FMLM, W_out readout</span><span><i class="sw" style="border-color:var(--s2)"></i>FLM teacher, 샘플링 시간</span><span><i class="sw dash" style="border-color:var(--s3)"></i>ridge probe (최종 layer)</span><span><i class="sw dot" style="border-color:var(--sg)"></i>랜덤 probe</span></div>
+      <p class="cap"><b>토큰 불일치.</b> Student는 블록 6까지 천천히 진행하고 대부분을 블록 7–12에서 진행합니다. 랜덤 probe는 끝까지 평평한데, 논문 Fig. 8과 같습니다. Conditioning이 고정되면 head가 affine이라 ridge probe는 W_out과 일치합니다.</p></div>
+    <div class="fig"><div class="chart" id="c_rhokl"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>FMLM depth</span><span><i class="sw" style="border-color:var(--s2)"></i>FLM teacher 시간</span></div>
+      <p class="cap"><b>KL(최종 ‖ readout).</b> 같은 그림이고, readout이 출력보다 더 sharp한 블록 9에서 작은 혹이 있습니다.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Readout 단계</span>
+  <h2>Noise seed, blur, commit, refine</h2>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_ent"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>W_out readout</span><span><i class="sw dash" style="border-color:var(--s3)"></i>tuned lens (블록별 probe)</span><span><i class="sw dot" style="border-color:var(--sg)"></i>주변분포 (완전한 noise)</span><span><i class="sw dot" style="border-color:var(--s2)"></i>teacher 마지막 step</span></div>
+      <p class="cap"><b>토큰당 엔트로피 (nats).</b> W_out으로 보면 블록 2–6은 주변분포 근처에 있습니다. 블록마다 학습한 tuned lens로 보면 이 plateau가 대부분 사라지고, readout이 blur에서 sharp로 꾸준히 가는 순서가 됩니다. 두 lens 모두 블록 7의 급락과 과하게 sharp한 블록 9는 유지합니다.</p></div>
+    <div class="fig"><div class="chart" id="c_agree"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>= 자기 최종 (W_out)</span><span><i class="sw dash" style="border-color:var(--s3)"></i>= 자기 최종 (tuned lens)</span><span><i class="sw" style="border-color:var(--s2)"></i>= teacher의 128-step 샘플</span><span><i class="sw dot" style="border-color:var(--sg)"></i>= 주변분포 argmax</span></div>
+      <p class="cap"><b>Argmax 일치율.</b> 같은 noise에서 student와 teacher는 서로 다른 문장에 도착합니다(토큰 일치율 49%). 그래서 각 trajectory를 자기 끝점으로 정규화했습니다.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_quality"></table></div>
+    <p class="cap"><b>블록별 디코딩 텍스트 품질</b> (GPT-2 Large Gen. PPL; unigram 엔트로피, 실제 LM1B = 4.31). 블록 2–6의 낮은 perplexity는 엔트로피가 낮은 데서 보이듯 반복적인 filler 때문입니다.</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Depth에서 시간으로</span>
+  <h2>각 블록의 실효 teacher 시간</h2>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_eff"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>자기 최종과의 일치율로 맞춤</span><span><i class="sw" style="border-color:var(--s3)"></i>자기 최종까지의 KL로 맞춤</span><span><i class="sw dot" style="border-color:var(--sg)"></i>균등 (블록 / 12)</span></div>
+      <p class="cap">블록마다, 자기 진행도가 그 블록의 진행도와 같은 teacher 시간 τ를 찾습니다. 대응이 단조라서 depth가 시간처럼 동작하지만, 균등 스케줄과는 거리가 멉니다. 논문도 학습 스케줄과 다른 depth 스케줄을 발견했습니다.</p></div>
+    <div class="fig"><div class="chart" id="c_teacher"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>clean prediction 엔트로피</span><span><i class="sw dash" style="border-color:var(--s1)"></i>clean prediction = 최종 토큰</span><span><i class="sw dot" style="border-color:var(--s5)"></i>state argmax = 최종 토큰</span></div>
+      <p class="cap"><b>기준자 자체:</b> τ에 따른 FLM teacher입니다. State의 argmax(noisy한 문장)는 마지막 step에서도 최종 샘플과 73%만 일치하지만, clean prediction은 일찍 정해집니다.</p></div>
+  </div>
+</section>
+
+<section id="lmmatch">
+  <span class="eyebrow">Depth에서 시간으로, state 공간에서</span>
+  <h2>각 블록의 state는 어느 diffusion 시점에 해당하나?</h2>
+  <p class="prose">아래 toy 섹션과 같은 테스트를 LM1B 모델에서 돌린 것입니다. <b>개별 블록에 시간이 입력되지 않습니다.</b> 12개 블록 모두 같은 conditioning (τ_s, τ_t) = (0, 1)을 받고, 여기 나온 시간은 사후에 측정한 값입니다. Noise z에서 시작한 flow 위의 state는 x_t = (1−t)·z + t·δ₀,ₜ(z)입니다. 따라서 블록 i의 readout δ^i를 시간 t에 놓으면 δ^i = δ₀,ₜ일 때 정확히 state x_t가 됩니다. 블록마다 δ₀,ₜ가 L2로 가장 가까운 t를 찾습니다. δ₀,ₜ에는 기준자 두 개를 씁니다:</p>
+  <ul class="plain prose">
+    <li><b>Self:</b> 쿼리 0 → τ_t에 대한 FMLM 자신의 답, 32개 격자점. 끝점이 블록 12 출력이라 student–teacher 불일치가 없습니다.</li>
+    <li><b>Teacher:</b> 같은 z에서 출발한 FLM teacher의 128-step trajectory, δ = z + (x_t − z)/t. Teacher 샘플이 student와 토큰 절반 정도가 달라서 이 기준자는 더 noisy합니다.</li>
+  </ul>
+  <p class="prose">Noise 샘플 128개를 썼습니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_lmmatch"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>self 기준자</span><span><i class="sw" style="border-color:var(--s2)"></i>teacher 기준자</span><span><i class="sw dot" style="border-color:var(--sg)"></i>균등 (블록 / 12)</span><span><i class="sw dash" style="border-color:var(--s3)"></i>불일치, self 기준자 (min L2 ÷ 8)</span></div>
+      <p class="cap"><b>점진적 sweep이 아니라 두 구간과 점프.</b> 블록 1–6은 모두 τ ≈ 0.03–0.06, 즉 flow의 시작점에 대응합니다. 이 블록들의 흐린 readout은 모델이 순수 noise에서 예측하는 것과 같습니다. 블록 7은 τ ≈ 0.5로 점프하고 블록 9–12는 0.88–1.0에 있습니다. 불일치는 블록 7–9에서 가장 큽니다. 이 state들은 trajectory 위의 어느 점과도 맞지 않는데, 위에서 본 commit 후 과하게 sharp한 단계입니다. Toy에서는 같은 측정이 매끄럽게 올라갑니다(cities: 블록 0–4에 걸쳐 0.32 → 0.99).</p></div>
+    <div class="fig"><div class="chart" id="c_lmcurve"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>self 기준자</span><span><i class="sw dash" style="border-color:var(--s2)"></i>teacher 기준자</span><span>● 가장 잘 맞는 점</span></div>
+      <p class="cap"><b>맞춤이 얼마나 뚜렷한가.</b> 선택한 블록에 대해 L2(δ^i, δ₀,ₜ)를 τ에 따라 그렸습니다. 앞쪽 블록은 시작점에서 뚜렷한 최솟값을 가집니다. 블록 7–9는 거의 평평해서 trajectory의 모든 점과 비슷하게 멉니다. 블록 10–12는 τ → 1에서 급격히 내려갑니다.</p></div>
+  </div>
+  <div class="controls"><label for="lmLayer">블록</label>
+    <input type="range" id="lmLayer" min="0" max="12" step="1" value="7">
+    <button type="button" id="lmPlay">재생</button>
+    <span class="stat" id="lmLayerStat"></span>
+    <span>샘플</span>
+    <div class="seg" role="group" aria-label="샘플" id="lmSample">
+      <button type="button" aria-pressed="true" data-i="0">1</button>
+      <button type="button" aria-pressed="false" data-i="1">2</button>
+      <button type="button" aria-pressed="false" data-i="2">3</button>
+    </div></div>
+  <div class="fig">
+    <div class="tablewrap"><table class="tok" id="lmtext"></table></div>
+    <p class="cap"><b>디코딩한 state (state의 argmax, 처음 48토큰).</b> 위 행은 블록 i의 readout을 가장 잘 맞는 시간에 놓은 것, (1−t)·z + t·δ^i입니다. 아래 행은 그 시간의 실제 self 기준자 state입니다. 다른 행에도 나오는 단어는 강조했습니다. 블록 1–6은 t ≈ 0에 맞춰지므로 두 행 모두 대부분 noise seed("montanari anarchy coronation …")입니다. 블록 7부터는 문맥 없는 내용("i am not call at …")이 두 행 모두에 나타납니다.</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Noisy한 끝점</span>
+  <h2>언어에서의 denoise 후 renoise</h2>
+  <p class="prose">FMLM은 시작 시간과 끝 시간을 conditioning으로 받습니다. 출력 <span class="m">δ_{s,t}</span>는 경로를 따라 clean prediction들을 평균한 것이라, noisy한 끝점일수록 target이 더 흐립니다. Flow-map step의 noise 부분은 parameterization으로 고정되어 있어서, 이 모델에서 renoise는 분포가 다시 흐려지는 형태로만 나타날 수 있습니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_sweep"></div>
+      <div class="legend" id="lg_sweep"></div>
+      <p class="cap"><b>Depth에 따른 엔트로피, 시작 τ_s = 0.</b> 모든 요청이 블록 9 근처에서 sharp하게 commit된 상태를 거칩니다. 그 뒤 마지막 블록들이 요청된 끝점 쪽으로 흐리게 만드는데, 끝점이 noisy할수록 더 흐려집니다.</p></div>
+    <div class="fig"><div class="chart" id="c_sweepnll"></div>
+      <div class="legend" id="lg_sweep2"></div>
+      <p class="cap"><b>Clean 토큰에 놓인 질량,</b> −log δ^i[y]. 여기서 y는 clean jump δ_{0,1}의 argmax입니다. τ_t = 0.1에서는 블록 11에서 가장 낮고(1.05) 출력에서 1.85로 올라갑니다. 중간 블록이 출력보다 깨끗한 문장에 더 가깝습니다.</p></div>
+  </div>
+  <div class="fig">
+    <div class="controls"><span>샘플링 step 수</span>
+      <div class="seg" role="group" aria-label="Rollout step 수" id="rollSeg">
+        <button type="button" id="r2" aria-pressed="false" data-n="2">2</button>
+        <button type="button" id="r4" aria-pressed="true" data-n="4">4</button>
+        <button type="button" id="r8" aria-pressed="false" data-n="8">8</button>
+      </div></div>
+    <div class="chart" id="c_roll"></div>
+    <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>readout 엔트로피</span><span><i class="sw dash" style="border-color:var(--s2)"></i>−log δ^i[최종 샘플]</span></div>
+    <p class="cap"><b>Multi-step FMLM 샘플링.</b> 네트워크를 한 번 평가할 때마다 depth 방향 진행이 처음부터 다시 시작되므로, depth가 샘플링 시간 안에 중첩됩니다(논문 Figs. 6–7). 순수 noise에서 noisy state로 가는 첫 step에서만 큰 sharpen-then-blur가 보입니다. 블록 2–6의 blur plateau는 입력이 거의 깨끗해도 모든 step에 나타나므로, noise 수준이 아니라 고정된 계산 단계입니다.</p>
+  </div>
+</section>
+
+<section id="toy">
+  <span class="eyebrow">Exact posterior가 있는 toy</span>
+  <h2>FLM Fig. 3 toy를 depth-as-time Fig. 1처럼 그리기</h2>
+  <div class="prose" style="display:grid;gap:12px">
+    <p>Support가 유한한 작은 데이터셋 두 개라서, 모든 noise 수준에서 clean prediction <span class="m">E[x₁ | x_t]</span>가 닫힌 형태로 주어지고 exact flow를 알 수 있습니다. 작은 FLM(블록 8개, 폭 128)을 학습하고 논문의 semigroup loss로 FMLM을 distill한 뒤, one-step FMLM의 각 블록을 디코딩합니다.</p>
+    <ul class="plain">
+      <li><b>cities</b> (FLM 논문 Fig. 3): 두 토큰 문장 "new york"과 "san diego". 각 readout 쌍을 (p₁[new] − p₁[san], p₂[york] − p₂[diego])에 그립니다. 유효한 문장은 네모, 섞인 쌍은 ✕ 모서리, 완전한 noise의 주변분포는 중앙입니다.</li>
+      <li><b>ring8</b> (8-Gaussians의 대응): 문장 여덟 개 (k, k). 첫 토큰의 분포를 팔각형 위에 그리며, 모서리 하나가 문장 하나입니다.</li>
+    </ul>
+  </div>
+  <div class="controls">
+    <span>데이터셋</span>
+    <div class="seg" role="group" aria-label="Toy 데이터셋" id="toyDs">
+      <button type="button" id="tds0" aria-pressed="true" data-v="cities">cities</button>
+      <button type="button" id="tds1" aria-pressed="false" data-v="ring8">ring8</button>
+    </div>
+    <span>FMLM teacher</span>
+    <div class="seg" role="group" aria-label="Distillation teacher" id="toyTeacher">
+      <button type="button" id="tt0" aria-pressed="true" data-v="exact">exact denoiser</button>
+      <button type="button" id="tt1" aria-pressed="false" data-v="flm">학습한 FLM</button>
+    </div>
+  </div>
+  <div class="controls"><label for="toyLayer">블록</label>
+    <input type="range" class="toyLayerSl" id="toyLayer" min="0" max="8" step="1" value="0">
+    <button type="button" class="playBtn" id="toyPlay">재생</button>
+    <span class="stat toyLayerStat"></span></div>
+  <div class="scat">
+    <div class="fig"><span class="ttl2" id="toyTitleA">FMLM one step, layer 0 readout</span><div id="toyA"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleB">같은 진행도의 exact posterior</span><div id="toyB"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleC">같은 진행도의 exact noisy state</span><div id="toyC"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleD">FMLM state-space readout</span><div id="toyD"></div></div>
+  </div>
+  <p class="prose cap">색은 샘플이 도착하는 문장입니다. 왼쪽: FMLM forward pass 한 번을 블록 i 뒤에서 디코딩한 것. 가운데: 같은 noise에서 출발한 exact flow 위의 exact clean prediction E[x₁ | x_t]를 같은 정규화 진행도(trajectory의 i/8)에서 본 것. 오른쪽: 그 지점의 noisy state x_t 자체로, FLM Fig. 3이 그리는 대상입니다. Gaussian noise를 품고 있어서 넓게 퍼진 채 시작해 두 문장으로 모입니다(축 2배 축소). Layer readout은 clean prediction이므로 가운데 패널이 같은 종류의 비교 대상입니다. 네 번째: 같은 블록의 readout을 noisy 끝점 쿼리 0 → τ_t(아래에서 선택)에 대해 X^i = (1−t)·z + t·δ^i로 state 공간에 옮긴 것으로, 논문의 endpoint probe x̃^i_r입니다. 회색 원은 쿼리가 요구하는 exact state X*₀,ₜ(z)입니다. Noise 항 (1−t)·z는 모든 블록에서 같고 δ^i만 움직입니다. Exact posterior는 항상 두 유효 문장을 잇는 선 위에 있습니다. 네트워크는 앞쪽 블록에서 그 선을 벗어납니다. cities에서는 한 토큰을 먼저 정하고(블록 3–4에서 점들이 네모의 변을 따라감) 나머지 토큰을 맞추는 경우가 많습니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_toyprog"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s3)"></i>유효한 문장 (argmax)</span><span><i class="sw" style="border-color:var(--s1)"></i>= 최종 토큰</span></div>
+      <p class="cap" id="toyProgCap"></p></div>
+    <div class="fig"><div class="chart" id="c_toyrho"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>FMLM depth (i/8)</span><span><i class="sw" style="border-color:var(--s2)"></i>exact flow 시간 (k/K)</span></div>
+      <p class="cap"><b>정규화된 남은 L2 거리,</b> 논문 Eq. 4, 같은 noise에서 출발한 exact flow 기준. 여기서는 student와 exact 끝점이 일치하므로 직접 비교할 수 있습니다.</p></div>
+  </div>
+  <h3>각 블록은 어느 diffusion 시점처럼 보이나?</h3>
+  <p class="prose cap"><b>개별 블록에 시간이 입력되지 않습니다.</b> FMLM은 모든 블록에 같은 conditioning (τ_s, τ_t) = (0, 1)을 주고 한 번 돌아갑니다. 여기 나온 시간은 사후에 측정한 값입니다. 블록마다 multi-step flow trajectory에서 그 블록의 readout과 state가 가장 잘 맞는 시간 t를 찾습니다. 네트워크에서 복원한 depth 방향 스케줄이며, 논문이 mixing 계수를 복원한 것과 같은 취지입니다.</p>
+  <div class="controls"><label for="toyLayer2">블록</label>
+    <input type="range" class="toyLayerSl" id="toyLayer2" min="0" max="8" step="1" value="0">
+    <button type="button" class="playBtn" id="toyPlay2">재생</button>
+    <span class="stat toyLayerStat"></span></div>
+  <p class="prose cap">Noise z에서 시작한 flow 위의 state는 x_t = (1−t)·z + t·δ*₀,ₜ(z)입니다. 따라서 블록 i의 readout δ^i를 시간 t에 (1−t)·z + t·δ^i로 놓으면 δ^i = δ*₀,ₜ일 때 정확히 state x_t가 됩니다. 블록마다 δ*₀,ₜ가 δ^i에 가장 가까운 t를 고릅니다(δ끼리 거리를 잽니다. State 거리는 t에 따라 줄어들어서 항상 t = 0을 고르게 됩니다). 그 블록의 state를 같은 시간의 exact state 옆에 그립니다. 이 페이지의 블록 슬라이더는 모두 함께 움직입니다.</p>
+  <div class="scat">
+    <div class="fig"><span class="ttl2" id="toyTitleE">가장 잘 맞는 flow 시간에 state로 그린 블록 readout</span><div id="toyE"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleF">그 시간의 exact flow state</span><div id="toyF"></div></div>
+    <div class="fig" style="justify-items:stretch"><div class="chart" id="c_toymatch"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>블록별로 가장 잘 맞는 flow 시간 τ (측정값)</span><span><i class="sw dash" style="border-color:var(--sg)"></i>불일치 (상대값)</span></div></div>
+  </div>
+  <p class="prose cap" id="toyMatchCap"></p>
+  <h3>Toy에서의 noisy한 끝점</h3>
+  <div class="controls"><span>요청한 끝점</span>
+    <div class="seg" role="group" aria-label="요청한 끝점" id="toyTau">
+      <button type="button" id="tq0" aria-pressed="false" data-v="0.25">τ_t = 0.25</button>
+      <button type="button" id="tq1" aria-pressed="false" data-v="0.50">0.50</button>
+      <button type="button" id="tq2" aria-pressed="true" data-v="0.75">0.75</button>
+      <button type="button" id="tq3" aria-pressed="false" data-v="1.00">1.00</button>
+    </div></div>
+  <div class="controls"><label for="toyLayer3">블록</label>
+    <input type="range" class="toyLayerSl" id="toyLayer3" min="0" max="8" step="1" value="0">
+    <button type="button" class="playBtn" id="toyPlay3">재생</button>
+    <span class="stat toyLayerStat"></span></div>
+
+  <div class="scat">
+    <div class="fig"><span class="ttl2" id="toyPathTitle">블록에 따른 readout 경로 (샘플 60개)</span><div id="toyPaths"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--muted)"></i>layer에 따른 경로</span><span>● 선택한 블록의 readout</span><span>○ exact target δ*₀,ₜ</span></div></div>
+    <div class="fig" style="justify-items:stretch"><div class="chart" id="c_toyclean"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>KL(clean 문장 ‖ readout)</span><span><i class="sw dash" style="border-color:var(--s2)"></i>KL(exact target ‖ readout)</span></div></div>
+  </div>
+  <p class="prose cap" id="toyRenoiseCap"></p>
+</section>
+
+<section>
+  <span class="eyebrow">대조 실험</span>
+  <h2>Noise는 어디에 나타나나</h2>
+  <div class="twocol">
+    <div class="fig"><div class="chart" id="c_seed"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>FMLM 1-step 출력 대비</span><span><i class="sw" style="border-color:var(--s2)"></i>FLM 128-step 출력 대비</span><span><i class="sw dot" style="border-color:var(--sg)"></i>블록 0 readout (FMLM 대비)</span></div>
+      <p class="cap"><b>Noise seeding.</b> 문맥을 보지 않는 규칙으로 각 위치에서 <span class="m">argmax_v [log 주변분포(v) + β·z(v)]</span>를 고릅니다. 그 위치 자신의 noise로 흔든 주변분포입니다. β = 2에서 FMLM 출력 토큰의 40%, teacher의 33%를 맞힙니다. 문장의 상당 부분이 문맥을 쓰기 전에 noise로 정해지는 셈인데, noise가 이미지의 대략적인 배치를 정하는 것과 비슷합니다.</p></div>
+    <div style="display:grid;gap:12px;align-content:start">
+      <h3>주의할 점</h3>
+      <ul class="plain">
+        <li><b>Plateau는 readout에 따라 달라집니다.</b> W_out으로 보면 블록 2–6이 주변분포 blur처럼 보이지만, tuned lens로는 더 많은 것이 디코딩됩니다(블록 6에서 일치율 0.48 대 0.41). 이 블록들은 noisy state가 아니라 계산 단계로 읽어야 합니다.</li>
+        <li><b>Student와 teacher의 끝점이 다릅니다.</b> 같은 noise에서 토큰 일치율 49%. Student와 teacher를 직접 비교한 거리는 이 차이가 섞여 있어서, depth-시간 대응은 자기 끝점 기준으로 정규화했습니다.</li>
+        <li><b>Tuned lens는 logit에 대한 ridge fit이고</b> cross-entropy fit이 아니라서, 엔트로피가 완전히 보정되지는 않습니다.</li>
+        <li><b>Mixing fit.</b> δ^i ≈ α·δ^L + μ·주변분포는 블록 2–6에는 잘 맞고(held-out R ≈ 0.22) 나머지에는 잘 맞지 않습니다(R ≈ 0.4–1.0).</li>
+      </ul>
+      <h3>다음 단계</h3>
+      <ul class="plain">
+        <li><b>아래에서 진행:</b> OpenWebText 재현, 그리고 layer 재사용(논문 Sec. 5).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="owt">
+  <span class="eyebrow">재현</span>
+  <h2>OpenWebText 체크포인트에 같은 probe 적용</h2>
+  <p class="prose">FMLM-B-OWT와 그 FLM teacher입니다. 12블록 DiT는 앞과 같습니다. Vocab은 GPT-2(50,257 토큰)이고 시퀀스 길이는 1024입니다. Probe는 그대로이고, lens에는 noise 샘플 128개, 나머지에는 64개를 썼습니다. 주황이 앞 섹션들의 LM1B, 파랑이 OWT입니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_owt_agree"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span><span><i class="sw dash" style="border-color:var(--sg)"></i>랜덤 probe (OWT)</span></div>
+      <p class="cap"><b>Depth에 따른 진행:</b> 각 블록 readout의 argmax가 모델 자신의 출력과 일치하는 비율. 두 곡선 모두 단조롭게 오르고 점프가 한 번씩 있습니다. LM1B는 블록 7, OWT는 블록 5입니다. 랜덤 probe는 어느 곡선도 재현하지 못합니다.</p></div>
+    <div class="fig"><div class="chart" id="c_owt_ent"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span></div>
+      <p class="cap"><b>같은 네 단계:</b> 흐린 plateau, 갑작스러운 commit, 과한 sharpening(둘 다 블록 9에서 엔트로피 최저), 그리고 출력 쪽으로 다시 흐려짐. OWT의 plateau가 더 낮고 짧습니다(블록 1–4).</p></div>
+    <div class="fig"><div class="chart" id="c_owt_match"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span><span>실선: self 기준자 · 점선: teacher 기준자</span></div>
+      <p class="cap"><b>State matching:</b> 각 블록의 readout이 재현하는 state의 flow 시간(측정값). 두 모델 모두 τ ≈ 0에서 시작합니다. LM1B는 블록 7에서 점프합니다. OWT는 블록 4–8에 걸쳐 올라가고, teacher 기준자로는 .12 → .37 → .67 → .89입니다. 이미지 논문의 점진적 sweep에 더 가깝습니다.</p></div>
+    <div class="fig"><div class="chart" id="c_owt_renoise"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span></div>
+      <p class="cap"><b>Denoise 후 renoise,</b> noisy 끝점 0 → τ_t = 0.1. −log δ^i[clean 토큰]을 그렸습니다. 두 모델 모두 출력 한두 블록 전에 깨끗한 문장에 가장 가깝고, 그 뒤 요청된 blur로 다시 나갑니다.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_owt"></table></div>
+    <p class="cap">"전환 블록"은 교체하면 네트워크가 망가지는 블록입니다(다음 섹션의 heatmap 참고). 두 모델 모두 commit 직전 블록입니다.</p>
+  </div>
+</section>
+
+<section id="reuse">
+  <span class="eyebrow">논문 Sec. 5</span>
+  <h2>블록을 재사용할 수 있나?</h2>
+  <p class="prose">학습 전에, 어떤 블록이 서로를 대신할 수 있는지 테스트했습니다. 블록 i를 블록 j로 바꾸고, 출력 토큰이 원래 네트워크와 얼마나 일치하는지 잽니다. 서로 바꿀 수 있는 블록들이 곧 공유 블록 하나가 흉내 내야 하는 대상입니다.</p>
+  <div class="controls"><span>모델</span>
+    <div class="seg" role="group" aria-label="교체 테스트 모델" id="swapSeg">
+      <button type="button" aria-pressed="true" data-v="lm1b">LM1B</button>
+      <button type="button" aria-pressed="false" data-v="owt">OWT</button>
+      <button type="button" aria-pressed="false" data-v="cities">toy cities</button>
+    </div></div>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_swap"></div>
+      <p class="cap" id="swapCap"></p></div>
+    <div class="fig"><div class="chart" id="c_reuse_curve"></div>
+      <div class="legend" id="lg_reuse"></div>
+      <p class="cap"><b>공유 블록으로 distillation (LM1B),</b> 학습 중 teacher와의 일치율. 학습은 데이터 없이 noise만 씁니다. Embedding, 시간 embedder, head는 복사해서 고정합니다. Loss는 논문 Eq. 7로, 정규화한 hidden state 매칭에 끝점 KL을 더한 것입니다. 각 공유 블록은 초기 loss가 가장 낮은 teacher 블록에서 시작합니다. 가운데 블록(6)이 최악의 선택입니다. 대체 불가능한 바로 그 블록이라 초기 loss가 3·10⁵로, 가장 좋은 블록의 6과 대조됩니다.</p></div>
+  </div>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_reuse_params"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s3)"></i>공유 + clock, 12번 적용 (블록 수별 최선의 묶음)</span><span><i class="sw dash" style="border-color:var(--s7)"></i>공유 없음, 블록 N개를 한 번씩</span><span>● 다른 2블록 / clock 없는 변형</span></div>
+      <p class="cap"><b>같은 파라미터에서 재사용 vs. 작은 네트워크</b> (full 프로토콜: 1,024 샘플 × seed 3개; 오차 막대는 0.002 미만). 블록 1–2개에서는 차이가 큽니다: 1개에서 일치율 +0.17, 2개에서 +0.13. 3개에서 +0.05, 4–6개에서 약 +0.02로 줄어듭니다. 블록 2개일 때는 어떻게 묶느냐가 가장 중요합니다. 전환 블록 6을 따로 두면(S B6 S) 0.75가 나오는데, 공유 없는 네트워크는 블록 4개가 있어야 이 값에 도달합니다. 두 블록을 번갈아 쓰면 0.69, 앞/뒤로 나누면 0.66입니다. <b>학습 seed:</b> 핵심 비교는 seed 2개를 더 학습했습니다. 일치율은 블록 6을 분리한 공유 블록 2개가 0.751 ± 0.001, 공유 없는 블록 4개가 0.751 ± 0.001, 공유 없는 블록 2개가 0.621 ± 0.001입니다(Gen. PPL 123.3, 129.2, 173.0). 결론은 seed에 따라 달라지지 않습니다.</p></div>
+    <div class="fig"><div class="chart" id="c_reuse_ppl"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s3)"></i>공유 + clock</span><span><i class="sw dash" style="border-color:var(--s7)"></i>공유 없음</span><span><i class="sw dot" style="border-color:var(--sg)"></i>teacher</span></div>
+      <p class="cap"><b>Gen. PPL과 엔트로피.</b> 둘을 함께 봐야 합니다. Gen. PPL이 teacher보다 낮은데 엔트로피가 4.0 미만이면 반복적인 문장이라는 뜻입니다. 공유 없는 N = 1(105 / 3.75)과, 블록 6을 따로 두지 않은 1–2블록 변형이 그렇습니다. 구조를 반영한 2–4블록 모델은 엔트로피가 teacher 근처(4.08–4.09 vs 4.15)이고 Gen. PPL은 124–125입니다. 같은 크기의 공유 없는 네트워크는 더 나쁩니다(N = 2에서 173, N = 3에서 134).</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_reuse"></table></div>
+    <p class="cap"><b>Full 프로토콜 평가</b> (one-step 샘플 1,024개 × seed 3개의 평균 ± 표준편차). Teacher 블록은 12 × 7.68M = 92.1M이고, 전체 모델은 embedding과 head 47M을 포함해 139.3M입니다. <b>tied_struct</b>(묶음 0 | 1 | 2–5 | 6 | 7–10 | 11)는 블록 파라미터를 절반으로 줄이면서 Gen. PPL과 엔트로피를 teacher 수준으로 유지합니다. OWT에서 같은 방법(0 | 1–3 | 4 | 5–10 | 11, 2.4×)도 마찬가지입니다(171.8 / 5.06 vs 168.9 / 5.17). 다만 이 크기에서는 공유 없는 6블록 네트워크가 연산 절반으로 거의 같은 품질을 냅니다. 논문 App. C.4처럼 clock이 도움이 됩니다. 공유 블록 하나에서 일치율이 clock이 있으면 0.66, 없으면 0.60이고, clock 없는 run은 학습 중 한 번 무너졌습니다.</p>
+  </div>
+  <div class="twocol">
+    <div class="fig">
+      <div class="tablewrap"><table class="num" id="t_reuse_toy"></table></div>
+      <p class="cap"><b>Toy cities</b> (teacher 파라미터 2.51M, 6000 step). 블록 하나를 8번 쓰는 경우와 적용 횟수를 절반으로 줄인 경우(K = 4)를 포함해 모든 변형이 teacher를 재현합니다. 이 toy는 너무 쉬워서 clock 유무를 구분하지 못합니다.</p></div>
+    <div style="display:grid;gap:12px;align-content:start">
+      <h3>아직 보여주지 못한 것</h3>
+      <ul class="plain">
+        <li><b>공유 변형의 연산량은 그대로입니다.</b> 모두 여전히 블록을 12번 적용합니다. 공유 블록의 적용 횟수를 줄이는 것(K &lt; 12)은 LM1B에서 아직 테스트하지 않았습니다. K = 6은 공유 없는 대조군뿐입니다.</li>
+        <li><b>재사용 vs. 작은 네트워크.</b> 블록 6개에서는 공유 없는 대조군이 tied_struct와 거의 같습니다(일치율 +0.02). 블록 4개 미만에서는 재사용이 확실히 이득입니다(파라미터 곡선 참고). 그래도 블록 하나로 네트워크 전체를 재현하지는 못하는데, 논문의 이미지 설정과 다른 점입니다.</li>
+        <li><b>3·4블록 묶음은 0.76에서 정체합니다.</b> 2블록보다 거의 나아지지 않습니다. 블록 0–5를 하나로 묶은 것이 병목일 수 있습니다. 앞쪽을 더 잘게 나누는 묶음은 아직 시도하지 않았습니다.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="commit">
+  <span class="eyebrow">토큰 단위로 보기</span>
+  <h2>One-step 언어 모델은 각 토큰을 어떻게 결정하나?</h2>
+  <p class="prose">각 위치마다 <b>commit depth</b>를 구합니다. readout의 argmax가 최종 토큰에 고정되기 시작하는 첫 블록입니다. LM1B 32,768개, OWT 65,536개 위치에서 쟀습니다. 이미지는 모든 곳이 동시에 선명해지지만, 언어 토큰은 확신도 순서로 하나씩 정해지고 확정 전에 바뀌기도 합니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_commit_hist"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B, 전체 토큰</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT, 전체 토큰</span><span><i class="sw dash" style="border-color:var(--s2)"></i>LM1B, noise seeding 토큰</span><span><i class="sw dash" style="border-color:var(--s1)"></i>OWT, noise seeding 토큰</span></div>
+      <p class="cap"><b>세 무리.</b> Noise seeding으로 정해지는 토큰(출력의 40%)은 대부분 블록 0에서 확정됩니다. 전체 토큰의 약 1/4은 전환 지점에서 한꺼번에 확정됩니다: LM1B는 블록 7, OWT는 블록 5. 나머지는 refine 블록들에 걸쳐 조금씩 확정됩니다. 한 문장 안의 퍼짐(표준편차 4.0)이 전체 문장에 걸친 퍼짐(4.0)과 같으므로, 같은 문장의 토큰들이 서로 다른 깊이에서 정해집니다.</p></div>
+    <div class="fig"><div class="chart" id="c_commit_conf"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span></div>
+      <p class="cap"><b>확신도가 순서를 정합니다.</b> 토큰의 최종 확률 10분위별 평균 commit depth입니다. 가장 확신이 낮은 토큰은 블록 10–11에서, 가장 높은 토큰은 블록 1–2에서 확정됩니다. Masked diffusion sampler의 confidence 기반 unmasking 순서와 같습니다. 위치는 영향이 없습니다(Spearman 0.00).</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_commit"></table></div>
+    <p class="cap">Commit depth와의 Spearman 상관은 양수가 "더 일찍"이 되도록 부호를 맞췄습니다. Teacher가 128-step trajectory에서 토큰을 확정하는 시점과의 상관(0.34 / 0.44)은 확신도를 통제하면 대부분 사라집니다(확신도 5분위 안에서 0.0–0.3). 두 모델 모두 확신하는 토큰부터 정합니다. <b>Masked diffusion과 달리 결정을 고쳐 씁니다.</b> 확정 직전 그 위치에는 보통 다른 후보 토큰이 있었고(57–66%), mask 같은 주변분포 filler는 드뭅니다(7–9%). 대부분의 위치가 depth에 걸쳐 argmax를 1–3번 바꿉니다.</p>
+  </div>
+</section>
+
+<section id="depend">
+  <span class="eyebrow">토큰 단위로 보기 (이어서)</span>
+  <h2>먼저 정해진 토큰이 나중 토큰의 문맥이 됩니다</h2>
+  <p class="prose">두 위치 사이의 의존을 개입으로 정의합니다. 위치 j의 noise만 다시 뽑고, 위치 i의 one-step 출력이 얼마나 움직이는지 잽니다: D<sub>j→i</sub> = KL(p<sub>i</sub>(z) ‖ p<sub>i</sub>(z_j를 다시 뽑은 z)). LM1B는 샘플 32개, OWT는 8개를 썼고, 각 샘플에서 모든 위치 j를 위치마다 두 번씩 다시 뽑았습니다. 강하게 의존하는 토큰은 함께 확정되지 않습니다. 순서대로 확정되고, 의존은 먼저 정해진 토큰에서 나중 토큰으로 향합니다.</p>
+  <div class="controls"><span>모델</span>
+    <div class="seg" role="group" aria-label="의존 분석 모델" id="depSeg">
+      <button type="button" aria-pressed="true" data-v="lm1b">LM1B</button>
+      <button type="button" aria-pressed="false" data-v="owt">OWT</button>
+    </div></div>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_dep_cls"></div>
+      <div class="legend" id="lg_dep_cls"></div>
+      <p class="cap"><b>뼈대가 먼저, 내용어는 전환 블록에서.</b> 토큰 종류별 commit depth 분포입니다. 구두점과 기능어는 일찍, 흔히 블록 0에서 확정됩니다. 내용어는 전환 블록에서 확정됩니다: LM1B는 38%가 블록 7, OWT는 46%가 블록 5. 나머지는 다듬는 단계에서 확정됩니다.</p></div>
+    <div class="fig">
+      <div class="tablewrap"><table class="num" id="t_dep"></table></div>
+      <p class="cap"><b>동시가 아니라 방향이 있습니다.</b> 거리가 같을 때, 의존이 강한 쌍이 더 비슷한 깊이에서 확정되지는 않습니다(순위 상관 −0.17 ~ 0.00). 대신 먼저 확정되는 토큰이 나중 토큰을 움직이는 정도가 그 반대의 2.3–3.2배이고, 모든 거리에서 그렇습니다. 문장의 나머지에 더 많이 의존하는 토큰일수록 늦게 확정됩니다(0.65 / 0.62). 즉 forward 한 번 안에서 나중 결정이 먼저 내린 결정을 조건으로 삼습니다. Masked diffusion이 샘플링 step에 걸쳐 하는 일과 같습니다.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_dep_ms"></table></div>
+    <p class="cap"><b>Multi-step 샘플링 안에서도 같은 순서</b> (4-step FMLM). 모든 step 안에서 commit depth가 확신도를 따릅니다. 뒤 step일수록 이미 정해진 채로 들어오는 토큰(블록 0에서 확정)이 많아집니다. 전환 블록에서 확정되는 비율은 모든 step에서 거의 같습니다. Noise 수준이 아니라 네트워크의 고정된 단계라는 뜻입니다.</p>
+  </div>
+</section>
+
+<section id="sweepB">
+  <span class="eyebrow">점프의 이유</span>
+  <h2>토큰 간 의존이 commit을 늦고 동시에 일어나게 만듭니다</h2>
+  <p class="prose">Toy로 가설을 검증합니다. 언어 posterior는 이산적인 문장들의 mixture라서, 서로 의존하는 토큰은 함께 결정해야 합니다. 각 toy는 16개 토큰으로 된 길이 8 문장이고, c토큰짜리 독립 덩어리들로 이루어집니다. 덩어리마다 m개의 랜덤 문자열 중 하나를 고르므로 posterior가 정확히 계산됩니다. c = 1이면 토큰이 독립이고, c = 8이면 문장 전체가 하나의 결합 선택입니다. FLM을 학습하고, exact denoiser에서 8블록 FMLM을 distill한 뒤 각 블록의 state matching 시간 τ*를 잽니다. 결과는 seed 3개(매번 새 데이터셋)의 평균입니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_sweep_dep"></div>
+      <div class="legend" id="lg_sweep_dep"></div>
+      <p class="cap"><b>의존 길이 (덩어리당 m = 4).</b> 토큰이 독립이면 블록 0부터 τ* ≈ 0.30에 있고 시간이 꾸준히 오릅니다. 각 위치가 혼자 결정할 수 있기 때문입니다. 의존 길이가 길어질수록 앞쪽 블록은 τ* ≈ 0에 머물고 결정이 늦은 점프로 미뤄집니다. 완전히 결합된 문장은 0.02에서 시작하고 최대 점프가 0.45입니다.</p></div>
+    <div class="fig"><div class="chart" id="c_sweep_b16"></div>
+      <div class="legend" id="lg_sweep_b16"></div>
+      <p class="cap"><b>Depth 2배 (블록 16개).</b> 독립 토큰은 진행이 16개 블록 전체에 고르게 퍼집니다(최대 점프 0.12). Mode가 4개인 완전 결합 문장은 여전히 점프하는데, 이제 중간(블록 8–10, .32 → .92)에서 일어나고 그 뒤에 refine이 이어집니다. 그래서 commit은 depth 부족이 아니라 실제 결정 이벤트입니다. Mode가 16개인 경우 8블록에서 보였던 점프가 16블록에서는 사라졌습니다. 그 점프는 depth 한계였으므로, "mode가 많을수록 점프"는 성립하지 않습니다.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_sweep"></table></div>
+    <p class="cap">블록 8개, width 128, seed 3개(평균 ± 표준편차). "문장 내 퍼짐"은 한 샘플의 위치들에 걸친 commit depth의 표준편차이고, 작을수록 토큰들이 함께 확정됩니다. Mode 64개와 256개 설정은 이 크기에서 학습되지 않아서(끝점 일치율 0.65와 0.21, width 256에서도 0.72와 0.52) 결론에서 뺐습니다. 이 그림은 토큰 단위 결과와 맞습니다. 일부 위치는 국소적으로 일찍 결정되고(noise seeding된 토큰, 확신도 높은 토큰), 조율이 필요한 결정은 commit 블록까지 기다린 뒤 확신도 순서로 고쳐 쓰입니다.</p>
+  </div>
+</section>
+
+<section id="trajsup">
+  <span class="eyebrow">방향 C</span>
+  <h2>Depth가 flow를 따라가게 만들 수 있나?</h2>
+  <p class="prose">One-step 모델을 fine-tune해서 블록 i의 readout이 τ = i/L에서의 flow와 맞도록 하고, 끝점은 원래 목표를 유지합니다. Loss는 Σ<sub>i</sub> w<sub>i</sub> KL(δ<sub>0,τ<sub>i</sub></sub> ‖ δ<sup>i</sup>)이고, 마지막 블록의 가중치는 1, 나머지는 λ입니다. Toy의 목표는 exact flow입니다. LM1B의 목표는 원래 모델이 쿼리 0 → τ<sub>i</sub>에 내놓는 답이고, 두 번째 항으로 다른 (s, t) 쿼리를 유지합니다. λ = 0은 대조군으로, 같은 fine-tune을 끝점만으로 합니다.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_ts_toy"></div>
+      <div class="legend" id="lg_ts_toy"></div>
+      <p class="cap"><b>Toy: stall은 필요 없습니다.</b> 블록 i에서 샘플을 뽑았을 때(early exit) 유효한 문장의 비율입니다. λ = 0은 점선, λ = 0.1은 실선이고, seed 3개의 평균입니다. 보조 loss가 없으면 블록 5 이전에는 유효한 문장이 나오지 않습니다. 보조 loss를 주면 독립 토큰은 블록 2에서 끝나고, 결합 문장은 점진적으로 올라갑니다. 끝점은 거의 변하지 않습니다(exact 끝점과의 일치율, λ = 0 → 0.1). c = 1은 0.974 → 0.962, c = 8은 0.979 → 0.976입니다. 예측과 반대로, 결합 데이터의 손해가 가장 작습니다.</p></div>
+    <div class="fig"><div class="chart" id="c_ts_lm"></div>
+      <div class="legend" id="lg_ts_lm"></div>
+      <p class="cap"><b>LM1B: 뒤쪽 블록에서의 early exit.</b> 블록 i에서 샘플을 뽑았을 때의 one-step Gen. PPL입니다(블록 7–12, 샘플 1,024개). 보조 loss를 주면 블록 11이 출력과 거의 같고(104 vs 102), 블록 10도 가깝습니다(111). 대조군은 같은 블록에서 130과 175입니다. 블록 2–6은 목표가 이른 시점의 흐린 분포라서, 의도대로 엔트로피가 낮은 filler(2.8–3.7)입니다.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_ts"></table></div>
+    <p class="cap"><b>LM1B, fine-tune 15k step</b> (끝점: 샘플 1,024개 × seed 3개). 보조 loss는 블록 1–9에서 스케줄과의 차이를 절반으로 줄이고(평균 KL 약 1.9 → 0.8–0.9), 끝점 품질을 유지합니다. Gen. PPL과 엔트로피는 대조군과 같고, 원래 모델과의 일치율은 0.89에서 0.83으로 벗어납니다. <b>결정 시점을 앞당길 수는 없습니다.</b> 블록 8이나 10에서 τ = 1에 도달하는 스케줄도 블록 8 품질은 균등 스케줄과 같고(138 vs 131), 중간 블록은 목표를 맞추지 못합니다(블록 5–6에서 KL 1.4–1.7). Toy와 달리 LM1B의 늦은 commit은 적어도 이 fine-tune 예산 안에서는 depth를 필요로 하는 것으로 보입니다. 연산 절감이 목적이라면, 처음부터 distill한 6블록 네트워크(위 표, 연산 절반으로 Gen. PPL 119)가 블록 8 early exit(연산 2/3)보다 낫습니다.</p>
+  </div>
+</section>
+
+<footer>
+  <span>Sanity check: 블록 12 readout은 모델 출력과 같습니다(최대 절대 차이 0). One-step FMLM Gen. PPL 118.1(논문 119.3), FLM 128 step 117.4(논문 112.5).</span>
+  <span>코드와 원 수치: <code>flm/depth_as_time/</code> (<code>lens.py</code>, <code>probe_onestep.py</code>, <code>probe_multistep.py</code>, <code>probe_controls.py</code>, <code>results/figs/summary.json</code>). 그리고 <code>probe_statematch.py</code>, <code>probe_blocks.py</code>, <code>compress.py</code>, <code>results/owt/</code>, <code>results/compress/</code>. 각 probe는 GB200 한 장에서 1–5분 걸렸습니다.</span>
+</footer>
+</div>

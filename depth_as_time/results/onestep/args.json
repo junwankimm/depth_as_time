@@ -1,0 +1,14 @@
+{
+ "student": "FMLM-B-LM1B",
+ "teacher": "FLM-B-LM1B",
+ "tokenizer": "google-bert/bert-base-uncased",
+ "ppl_model": "openai-community/gpt2-large",
+ "n_samples": 256,
+ "batch_size": 16,
+ "teacher_steps": 128,
+ "cross_every": 2,
+ "nested_steps": "0,32,64,96,112,127",
+ "n_text": 6,
+ "seed": 0,
+ "out": "results/onestep"
+}

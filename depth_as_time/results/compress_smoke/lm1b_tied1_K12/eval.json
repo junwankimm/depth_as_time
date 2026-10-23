@@ -1,0 +1,37 @@
+{
+ "name": "lm1b_tied1_K12",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied1",
+  "K": null,
+  "split": 7,
+  "steps": 300,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 300,
+  "n_eval": 64,
+  "ckpt_every": 300,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress_smoke"
+ },
+ "n_teacher": 139342394,
+ "n_student": 54986554,
+ "n_trainable": 7776512,
+ "log": [
+  {
+   "agree_teacher": 0.00732421875,
+   "kl_teacher": 9.029855251312256,
+   "gen_ppl": 4.148006955398688,
+   "entropy": 0.5461704942863435,
+   "gen_ppl_teacher": 114.68402885943132,
+   "entropy_teacher": 4.136703051626682,
+   "sample": "free government free free free free free end free free free free free free free mr free free free free report free free free free all free free free free free free free free free home free free free free free free free free free free free free 4 free free free free plans free free free free free free",
+   "step": 300
+  }
+ ]
+}

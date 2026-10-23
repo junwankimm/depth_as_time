@@ -1,0 +1,95 @@
+{
+ "name": "lm1b_tied_struct_K12_g2b6_s1",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied_struct",
+  "K": null,
+  "split": 7,
+  "groups": "0-5,7-11|6",
+  "init": "auto",
+  "log_every": 1000,
+  "tag": "_g2b6_s1",
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 1,
+  "out": "results/compress"
+ },
+ "init": [
+  0,
+  6
+ ],
+ "n_teacher": 139342394,
+ "n_student": 62664250,
+ "n_trainable": 15454208,
+ "log": [
+  {
+   "agree_teacher": 0.649627685546875,
+   "kl_teacher": 1.1506095826625824,
+   "gen_ppl": 139.62301499441332,
+   "entropy": 4.020325081422925,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is. [CLS] but this is have a deal that mr both well like and this being in tuesday. [CLS] my for they are now as around have through on the world can may on the house, much of one food the state washington in as this month, that the country will",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.700775146484375,
+   "kl_teacher": 0.8949468806385994,
+   "gen_ppl": 130.9598733194011,
+   "entropy": 4.040237878449261,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the here s is. [CLS] but this is just a deal that have as well like and this being in november. [CLS] and for they are now as around have more on the world and only on the house, much of one food the state washington [CLS] around this month, that the country will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.724578857421875,
+   "kl_teacher": 0.7820849493145943,
+   "gen_ppl": 128.4044850570751,
+   "entropy": 4.054168997332454,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is. [CLS] but this is just a deal that have as well like and this being in november. [CLS] my : they are now these around have more on the world and only on the house, much of one food the state washington in around this month, that the country will",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.74041748046875,
+   "kl_teacher": 0.7174422144889832,
+   "gen_ppl": 127.36238735089681,
+   "entropy": 4.06219410803169,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is. [CLS] but this is just a deal that have as well like and this being in november. [CLS] my : they are now a around 5 more than the world and only on the day, much of one food the in washington in around this month, that the country will",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.748809814453125,
+   "kl_teacher": 0.6729739010334015,
+   "gen_ppl": 123.87955281171037,
+   "entropy": 4.06826950609684,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is. [CLS] but this is just a deal that have as well like and this is in november. [CLS] and : they are now a around that more than the world and only on the day, much of one food the in washington in around this month, that the country will",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.753814697265625,
+   "kl_teacher": 0.6448259055614471,
+   "gen_ppl": 123.74072690594238,
+   "entropy": 4.073428392410278,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s quarter. [CLS] but this is just a deal that have as well like and this is in november. [CLS] and for the are now a around 5 more than the world and only on the day, much of one food the in washington in around this month, that the country will",
+   "step": 150000
+  }
+ ]
+}

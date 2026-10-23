@@ -1,0 +1,48 @@
+{
+ "name": "cities_tied1_noclock_K8",
+ "args": {
+  "teacher": "toy:cities:exact",
+  "variant": "tied1_noclock",
+  "K": null,
+  "split": 4,
+  "steps": 6000,
+  "batch_size": 1024,
+  "lr": 0.0003,
+  "warmup": 500,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 2000,
+  "n_eval": 1024,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress_toy"
+ },
+ "n_teacher": 2505604,
+ "n_student": 429572,
+ "n_trainable": 296576,
+ "log": [
+  {
+   "agree_teacher": 0.9453125,
+   "kl_teacher": 0.1278994574677199,
+   "valid": 0.955078125,
+   "valid_teacher": 0.994140625,
+   "step": 2000
+  },
+  {
+   "agree_teacher": 0.99267578125,
+   "kl_teacher": 0.002277775351103628,
+   "valid": 0.9931640625,
+   "valid_teacher": 0.994140625,
+   "step": 4000
+  },
+  {
+   "agree_teacher": 0.99560546875,
+   "kl_teacher": 0.000399491573261912,
+   "valid": 0.9990234375,
+   "valid_teacher": 0.994140625,
+   "step": 6000
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+ "student": "FMLM-B-OWT",
+ "teacher": "FLM-B-OWT",
+ "tokenizer": "openai-community/gpt2",
+ "ppl_model": "openai-community/gpt2-large",
+ "n_samples": 128,
+ "batch_size": 4,
+ "teacher_steps": 128,
+ "cross_every": 2,
+ "nested_steps": "0,32,64,96,112,127",
+ "n_text": 4,
+ "seed": 0,
+ "out": "results/owt/onestep"
+}

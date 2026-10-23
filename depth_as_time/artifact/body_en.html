@@ -1,0 +1,433 @@
+<div class="wrap">
+<header>
+  <span class="eyebrow">Probe report · FLM / FMLM on LM1B and OpenWebText · updated 2026-10-20</span>
+  <h1>Depth as Time in FMLM</h1>
+  <p class="lede prose">Does a one-step language flow map unroll the multi-step denoising trajectory across its 12 transformer blocks, as Asiimwe et al. (arXiv:2610.03626) report for image generators? We decode every block of FMLM with its own output head and compare it against the FLM teacher's 128-step trajectory from the same noise.</p>
+  <div class="meta">
+    <span>student: david3684/FMLM-B-LM1B</span><span>teacher: david3684/FLM-B-LM1B</span>
+    <span>|V| = 30,522 · L = 128 · 12 blocks</span><span>256 noise samples</span>
+    <span>replication: david3684/FMLM-B-OWT, FLM-B-OWT (|V| = 50,257 · L = 1024)</span>
+  </div>
+</header>
+
+<section>
+  <span class="eyebrow">Summary</span>
+  <div class="findings">
+    <div class="finding"><span class="verdict v-yes">Reproduces</span><h3>Monotone progress across depth</h3>
+      <p>Agreement with the final output rises from 0.27 at block 0 to 1.0 at block 12. A random linear probe stays near zero until block 10, so the trend is not a readout artifact.</p></div>
+    <div class="finding"><span class="verdict v-yes">Reproduces, strongly</span><h3>Denoise, then renoise</h3>
+      <p>Asked for a noisy endpoint, the network sharpens to a clean sentence mid-depth (entropy 0.86 at block 9) and blurs it back to the requested target at the output (5.11).</p></div>
+    <div class="finding"><span class="verdict v-part">Partly</span><h3>Depth tracks teacher time</h3>
+      <p>Monotone, but back-loaded: blocks 0–6 cover under 1% of the teacher's progress, and the last 3–5 blocks resolve most tokens. Block 7 commits abruptly.</p></div>
+    <div class="finding"><span class="verdict v-no">Does not transfer as is</span><h3>Signal + Gaussian-noise mixing</h3>
+      <p>The output lives on the simplex and carries no linear noise term. The language form of noise is the unigram marginal (blur) plus per-position noise seeding.</p></div>
+    <div class="finding"><span class="verdict v-yes">Replicates</span><h3>Same picture on OpenWebText</h3>
+      <p>Another checkpoint with a different vocabulary and 8× the context shows every property above. The commit happens two blocks earlier (block 5) and the transition is smoother.</p></div>
+    <div class="finding"><span class="verdict v-part">Partly</span><h3>Layer reuse (paper Sec. 5)</h3>
+      <p>Reuse pays off at strong compression. With 2 shared blocks (the transition block kept separate) agreement is 0.75. An untied network needs 4 blocks, twice the parameters, for the same. At 6 blocks an untied network nearly matches, so reuse adds little there.</p></div>
+    <div class="finding"><span class="verdict v-yes">New in language</span><h3>Confidence-ordered, revisable decoding</h3>
+      <p>Per token, the one-step model commits in confidence order (Spearman 0.65–0.68, no left-to-right order), with a quarter of the tokens at the transition block, and revises 1–3 times before committing. Punctuation and function words come first and content words at the transition block. Earlier tokens act as context for later ones (2.3–3.2× stronger influence than the reverse).</p></div>
+    <div class="finding"><span class="verdict v-part">Partly</span><h3>Forcing depth to follow the flow</h3>
+      <p>In toys, supervising each block with the flow at τ = i/L removes the stall at almost no endpoint cost. On LM1B it halves the mismatch and makes blocks 10–11 usable for early exit, but the commit cannot be pulled earlier than block 8.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Method</span>
+  <h2>How the readout works</h2>
+  <div class="prose" style="display:grid;gap:14px">
+    <p>FLM is a continuous flow on one-hot vectors: <span class="m">x_t = (1−t)·z + t·onehot(y)</span>, with Gaussian <span class="m">z ∈ R^{128×30522}</span>, t = 0 noise, t = 1 data. FMLM learns the two-time denoiser <span class="m">δ_{s,t}</span>; for one step (s, t) = (0, 1) its output <em>is</em> the generated sample.</p>
+    <p>We use the paper's parameter-free probe: run one forward pass, take the residual stream <span class="m">h_i</span> after each block, and decode it with the model's own final head and the same time conditioning. The result <span class="m">δ^i</span> is a distribution over the vocabulary at each of the 128 positions. At block 12 it equals the model output exactly.</p>
+  </div>
+  <div class="pipe" aria-label="Readout pipeline">
+    <span class="n">noise z</span><span class="a">→</span><span class="n">embed h₀</span><span class="a">→</span><span class="n">block 1 … block i</span><span class="a">→</span><span class="n hl">h_i</span><span class="a">→</span><span class="n hl">W_out(h_i; τ_s, τ_t)</span><span class="a">→</span><span class="n hl">softmax → δ^i</span><span class="a">→</span><span class="n">argmax text</span>
+  </div>
+  <div class="prose twocol" style="max-width:none">
+    <div style="display:grid;gap:8px"><h3>Noise in token space has two faces</h3>
+      <ul class="plain">
+        <li><b>The state x_t</b> reads as a sentence where a fraction of tokens are random vocabulary items. FLM's time variable τ is exactly the fraction of tokens already decided.</li>
+        <li><b>The clean prediction</b> reads as blur: probability mass spreads toward the unigram marginal. At full noise the teacher predicts <span class="m">"the the the , ."</span>, the language version of a mean image.</li>
+      </ul></div>
+    <div style="display:grid;gap:8px"><h3>The ruler</h3>
+      <ul class="plain">
+        <li>From the same z, the FLM teacher takes 128 Euler steps; its clean prediction at each step is the time axis.</li>
+        <li>We compare block by block: agreement with the final tokens, KL to the final distribution, entropy (blur), and GPT-2 Large perplexity of the decoded text.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Layerwise decodes</span>
+  <h2>What each block would generate</h2>
+  <p class="prose cap">First 40 of 128 token positions, argmax of each block's readout for one noise sample. Below the student, the teacher's clean prediction at a few sampling times from the same noise. This is the language counterpart of the paper's row of decoded images.</p>
+  <div class="controls"><span>Noise sample</span>
+    <div class="seg" role="group" aria-label="Sample" id="sampleSeg">
+      <button type="button" id="smp0" aria-pressed="true" data-i="0">A</button>
+      <button type="button" id="smp1" aria-pressed="false" data-i="1">B</button>
+      <button type="button" id="smp2" aria-pressed="false" data-i="2">C</button>
+    </div></div>
+  <div class="key">
+    <span><span class="t f">token</span> same as that row's final output (student block 12, or teacher's last step)</span>
+    <span><span class="t m">the</span> a token the full-noise marginal predicts (filler)</span>
+    <span><span class="t o">token</span> other</span>
+  </div>
+  <div class="gridwrap"><table class="tok" id="tokgrid"></table></div>
+  <ul class="plain prose">
+    <li><b>Block 0</b> already places some final tokens. It sees only each position's own noise vector, with no context.</li>
+    <li><b>Blocks 2–6</b> hold a filler-heavy draft that changes little.</li>
+    <li><b>Block 7</b> commits to content words, and <b>blocks 10–12</b> repair grammar and coherence.</li>
+  </ul>
+</section>
+
+<section>
+  <span class="eyebrow">Progress</span>
+  <h2>Normalized remaining distance</h2>
+  <p class="prose cap">Paper Eq. 4: distance to each trajectory's own endpoint, divided by its maximum along the trajectory and averaged over 256 samples. Student x-axis is block / 12; teacher x-axis is step / 128.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_rho"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>FMLM, W_out readout</span><span><i class="sw" style="border-color:var(--s2)"></i>FLM teacher, sampling time</span><span><i class="sw dash" style="border-color:var(--s3)"></i>ridge probe (final layer)</span><span><i class="sw dot" style="border-color:var(--sg)"></i>random probe</span></div>
+      <p class="cap"><b>Token disagreement.</b> The student makes slow progress through block 6, then most of it in blocks 7–12. The random probe stays flat until the end, as in the paper's Fig. 8. The ridge probe matches W_out because the head is affine for fixed conditioning.</p></div>
+    <div class="fig"><div class="chart" id="c_rhokl"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>FMLM depth</span><span><i class="sw" style="border-color:var(--s2)"></i>FLM teacher time</span></div>
+      <p class="cap"><b>KL(final ‖ readout).</b> Same picture, with a small bump at block 9 where the readout is sharper than the output.</p></div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Readout phases</span>
+  <h2>Noise seed, blur, commit, refine</h2>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_ent"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>W_out readout</span><span><i class="sw dash" style="border-color:var(--s3)"></i>tuned lens (probe per block)</span><span><i class="sw dot" style="border-color:var(--sg)"></i>marginal (full noise)</span><span><i class="sw dot" style="border-color:var(--s2)"></i>teacher final step</span></div>
+      <p class="cap"><b>Per-token entropy, nats.</b> Under W_out, blocks 2–6 sit near the marginal. A tuned lens trained per block removes most of that plateau: the readout becomes a steady blur-to-sharp sequence. Both lenses keep the block-7 drop and the over-sharp block 9.</p></div>
+    <div class="fig"><div class="chart" id="c_agree"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>= own final (W_out)</span><span><i class="sw dash" style="border-color:var(--s3)"></i>= own final (tuned lens)</span><span><i class="sw" style="border-color:var(--s2)"></i>= teacher's 128-step sample</span><span><i class="sw dot" style="border-color:var(--sg)"></i>= marginal argmax</span></div>
+      <p class="cap"><b>Argmax agreement.</b> Student and teacher end at different sentences from the same noise (49% token agreement). That is why each trajectory is normalized to its own endpoint.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_quality"></table></div>
+    <p class="cap"><b>Decoded text quality by block</b> (GPT-2 Large Gen. PPL; unigram entropy, real LM1B = 4.31). Low perplexity at blocks 2–6 comes from repetitive filler, as the low entropy shows.</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Depth to time</span>
+  <h2>Effective teacher time of each block</h2>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_eff"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>match on agreement with own final</span><span><i class="sw" style="border-color:var(--s3)"></i>match on KL to own final</span><span><i class="sw dot" style="border-color:var(--sg)"></i>uniform (block / 12)</span></div>
+      <p class="cap">For each block we find the teacher time τ whose own progress equals the block's progress. The mapping is monotone, so depth acts as time, but it is far from the uniform schedule. The paper also finds a depth schedule unlike the training one.</p></div>
+    <div class="fig"><div class="chart" id="c_teacher"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>clean prediction entropy</span><span><i class="sw dash" style="border-color:var(--s1)"></i>clean prediction = final tokens</span><span><i class="sw dot" style="border-color:var(--s5)"></i>state argmax = final tokens</span></div>
+      <p class="cap"><b>The ruler itself:</b> the FLM teacher along τ. The state's argmax (the noisy sentence) agrees with the final sample only 73% at the last step, while the clean prediction resolves early.</p></div>
+  </div>
+</section>
+
+<section id="lmmatch">
+  <span class="eyebrow">Depth to time, in state space</span>
+  <h2>Which diffusion time does each block's state match?</h2>
+  <p class="prose">This is the same test as in the toy section below, run on the LM1B model. <b>No time is fed to individual blocks.</b> All 12 blocks see the same conditioning (τ_s, τ_t) = (0, 1), and the time shown here is measured after the fact. Along a flow from noise z, the state is x_t = (1−t)·z + t·δ₀,ₜ(z). So block i's readout δ^i, placed at time t, reproduces the state x_t exactly when δ^i = δ₀,ₜ. For every block we find the t whose δ₀,ₜ is closest in L2. We use two rulers for δ₀,ₜ:</p>
+  <ul class="plain prose">
+    <li><b>Self:</b> FMLM's own answer to the query 0 → τ_t, on a 32-point grid. Its endpoint is the block-12 output, so there is no student–teacher mismatch.</li>
+    <li><b>Teacher:</b> the FLM teacher's 128-step trajectory from the same z, with δ = z + (x_t − z)/t. This ruler is noisier because the teacher's sample differs from the student's in about half the tokens.</li>
+  </ul>
+  <p class="prose">128 noise samples were used.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_lmmatch"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>self ruler</span><span><i class="sw" style="border-color:var(--s2)"></i>teacher ruler</span><span><i class="sw dot" style="border-color:var(--sg)"></i>uniform (block / 12)</span><span><i class="sw dash" style="border-color:var(--s3)"></i>mismatch, self ruler (min L2 ÷ 8)</span></div>
+      <p class="cap"><b>Two regimes and a jump, not a gradual sweep.</b> Blocks 1–6 all match τ ≈ 0.03–0.06, i.e. the start of the flow: their blurred readout is what the model predicts from pure noise. Block 7 jumps to τ ≈ 0.5, and blocks 9–12 sit at 0.88–1.0. The mismatch peaks at blocks 7–9: those states are on no point of the trajectory. They are the committed, over-sharpened stage seen above. In the toy, the same measurement rises smoothly (cities: 0.32 → 0.99 over blocks 0–4).</p></div>
+    <div class="fig"><div class="chart" id="c_lmcurve"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>self ruler</span><span><i class="sw dash" style="border-color:var(--s2)"></i>teacher ruler</span><span>● best match</span></div>
+      <p class="cap"><b>How sharp the match is.</b> This plots L2(δ^i, δ₀,ₜ) against τ for the selected block. Early blocks have a clear minimum at the start. Blocks 7–9 are almost flat: they are about equally far from every point on the trajectory. Blocks 10–12 dip sharply at τ → 1.</p></div>
+  </div>
+  <div class="controls"><label for="lmLayer">Block</label>
+    <input type="range" id="lmLayer" min="0" max="12" step="1" value="7">
+    <button type="button" id="lmPlay">Play</button>
+    <span class="stat" id="lmLayerStat"></span>
+    <span>Sample</span>
+    <div class="seg" role="group" aria-label="Sample" id="lmSample">
+      <button type="button" aria-pressed="true" data-i="0">1</button>
+      <button type="button" aria-pressed="false" data-i="1">2</button>
+      <button type="button" aria-pressed="false" data-i="2">3</button>
+    </div></div>
+  <div class="fig">
+    <div class="tablewrap"><table class="tok" id="lmtext"></table></div>
+    <p class="cap"><b>Decoded states (argmax of the state, first 48 tokens).</b> The top row is block i's readout placed at its best-matching time, (1−t)·z + t·δ^i. The bottom row is the true self-ruler state at that time. Words that also appear in the other row are highlighted. Because blocks 1–6 match t ≈ 0, both rows are mostly the noise seed ("montanari anarchy coronation …"). From block 7 on, the context-free content ("i am not call at …") appears in both rows.</p>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">Noisy endpoints</span>
+  <h2>Denoise, then renoise, in language</h2>
+  <p class="prose">FMLM is conditioned on a start and an end time. Its output <span class="m">δ_{s,t}</span> averages the clean predictions along the path, so a noisy endpoint has a blurrier target. The noise part of the flow-map step is fixed by the parameterization, so in this model renoising can only appear as the distribution blurring again.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_sweep"></div>
+      <div class="legend" id="lg_sweep"></div>
+      <p class="cap"><b>Entropy across depth, start τ_s = 0.</b> Every request passes through a sharp, committed state around block 9. Then the last blocks blur toward the requested endpoint, more for noisier endpoints.</p></div>
+    <div class="fig"><div class="chart" id="c_sweepnll"></div>
+      <div class="legend" id="lg_sweep2"></div>
+      <p class="cap"><b>Mass on the clean tokens,</b> −log δ^i[y], where y is the argmax of the clean jump δ_{0,1}. For τ_t = 0.1, it is lowest at block 11 (1.05) and rises to 1.85 at the output: intermediate blocks are closer to the clean sentence than the output.</p></div>
+  </div>
+  <div class="fig">
+    <div class="controls"><span>Sampling steps</span>
+      <div class="seg" role="group" aria-label="Rollout steps" id="rollSeg">
+        <button type="button" id="r2" aria-pressed="false" data-n="2">2</button>
+        <button type="button" id="r4" aria-pressed="true" data-n="4">4</button>
+        <button type="button" id="r8" aria-pressed="false" data-n="8">8</button>
+      </div></div>
+    <div class="chart" id="c_roll"></div>
+    <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>readout entropy</span><span><i class="sw dash" style="border-color:var(--s2)"></i>−log δ^i[final sample]</span></div>
+    <p class="cap"><b>Multi-step FMLM sampling.</b> Each network evaluation restarts its own depthwise progression, so depth nests inside sampling time (paper Figs. 6–7). Only the first step, from pure noise to a noisy state, shows a large sharpen-then-blur. The blur plateau at blocks 2–6 appears in every step, even when the input is nearly clean, so it is a fixed computational stage, not a noise level.</p>
+  </div>
+</section>
+
+<section id="toy">
+  <span class="eyebrow">Toy with an exact posterior</span>
+  <h2>FLM Fig. 3 toy, drawn like depth-as-time Fig. 1</h2>
+  <div class="prose" style="display:grid;gap:12px">
+    <p>Two tiny datasets with finite support, so the clean prediction <span class="m">E[x₁ | x_t]</span> at every noise level has a closed form and the exact flow is known. We train a small FLM (8 blocks, width 128), distill an FMLM with the paper's semigroup loss, and decode each block of the one-step FMLM.</p>
+    <ul class="plain">
+      <li><b>cities</b> (FLM paper Fig. 3): two-token sentences "new york" and "san diego". Each readout pair is drawn at (p₁[new] − p₁[san], p₂[york] − p₂[diego]). Valid sentences sit at the squares, mixed-up pairs at the ✕ corners, and the full-noise marginal at the centre.</li>
+      <li><b>ring8</b> (the 8-Gaussians analogue): eight sentences (k, k). The first token's distribution is drawn on an octagon, one corner per sentence.</li>
+    </ul>
+  </div>
+  <div class="controls">
+    <span>Dataset</span>
+    <div class="seg" role="group" aria-label="Toy dataset" id="toyDs">
+      <button type="button" id="tds0" aria-pressed="true" data-v="cities">cities</button>
+      <button type="button" id="tds1" aria-pressed="false" data-v="ring8">ring8</button>
+    </div>
+    <span>FMLM teacher</span>
+    <div class="seg" role="group" aria-label="Distillation teacher" id="toyTeacher">
+      <button type="button" id="tt0" aria-pressed="true" data-v="exact">exact denoiser</button>
+      <button type="button" id="tt1" aria-pressed="false" data-v="flm">trained FLM</button>
+    </div>
+  </div>
+  <div class="controls"><label for="toyLayer">Block</label>
+    <input type="range" class="toyLayerSl" id="toyLayer" min="0" max="8" step="1" value="0">
+    <button type="button" class="playBtn" id="toyPlay">Play</button>
+    <span class="stat toyLayerStat"></span></div>
+  <div class="scat">
+    <div class="fig"><span class="ttl2" id="toyTitleA">FMLM one step, readout at layer 0</span><div id="toyA"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleB">Exact posterior at matched progress</span><div id="toyB"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleC">Exact noisy state at matched progress</span><div id="toyC"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleD">FMLM state-space readout</span><div id="toyD"></div></div>
+  </div>
+  <p class="prose cap">Color is the sentence the sample ends at. Left: one forward pass of FMLM, decoded after block i. Middle: the exact clean prediction E[x₁ | x_t] along the exact flow from the same noise, at the same normalized progress (i/8 of the trajectory). Right: the noisy state x_t itself at that point, which is what FLM Fig. 3 plots; it carries the Gaussian noise, so it starts spread out and contracts onto the two sentences (axes zoomed out 2×). The layer readout is a clean prediction, so the middle panel is its like-for-like reference. Fourth: the same block's readout for a noisy-endpoint query 0 → τ_t (chosen below), moved into state space as X^i = (1−t)·z + t·δ^i, the paper's endpoint probe x̃^i_r. Gray rings are the exact state X*₀,ₜ(z) the query asks for. The noise term (1−t)·z is the same at every block; only δ^i moves. The exact posterior always lies on the line between the two valid sentences. The network instead leaves it at early blocks. In cities it often fixes one token first (points along the square's edges at blocks 3–4) and then brings the other into agreement.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_toyprog"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s3)"></i>valid sentence (argmax)</span><span><i class="sw" style="border-color:var(--s1)"></i>= final tokens</span></div>
+      <p class="cap" id="toyProgCap"></p></div>
+    <div class="fig"><div class="chart" id="c_toyrho"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>FMLM depth (i/8)</span><span><i class="sw" style="border-color:var(--s2)"></i>exact flow time (k/K)</span></div>
+      <p class="cap"><b>Normalized remaining L2 distance,</b> paper Eq. 4, against the exact flow from the same noise. Here student and exact endpoints agree, so the comparison is direct.</p></div>
+  </div>
+  <h3>Which diffusion time does each block look like?</h3>
+  <p class="prose cap"><b>No time is fed to individual blocks.</b> FMLM runs once with the same conditioning (τ_s, τ_t) = (0, 1) in every block. The time shown here is measured after the fact: for each block we search the multi-step flow's trajectory for the time t whose state best matches that block's readout. It is the depthwise schedule recovered from the network, in the spirit of the paper's recovered mixing coefficients.</p>
+  <div class="controls"><label for="toyLayer2">Block</label>
+    <input type="range" class="toyLayerSl" id="toyLayer2" min="0" max="8" step="1" value="0">
+    <button type="button" class="playBtn" id="toyPlay2">Play</button>
+    <span class="stat toyLayerStat"></span></div>
+  <p class="prose cap">Along the flow from noise z, the state is x_t = (1−t)·z + t·δ*₀,ₜ(z). So block i's readout δ^i, placed at time t as (1−t)·z + t·δ^i, reproduces the state x_t exactly when δ^i = δ*₀,ₜ. For each block we pick the t whose δ*₀,ₜ is closest to δ^i (distance measured between the δ's, because the state distance shrinks with t and would always pick t = 0). We then draw that block's state next to the exact state at the same time. All block sliders on this page move together.</p>
+  <div class="scat">
+    <div class="fig"><span class="ttl2" id="toyTitleE">Block readout, drawn as a state at its best-matching flow time</span><div id="toyE"></div></div>
+    <div class="fig"><span class="ttl2" id="toyTitleF">Exact flow state at that time</span><div id="toyF"></div></div>
+    <div class="fig" style="justify-items:stretch"><div class="chart" id="c_toymatch"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>best-matching flow time τ for each block (measured)</span><span><i class="sw dash" style="border-color:var(--sg)"></i>mismatch (relative)</span></div></div>
+  </div>
+  <p class="prose cap" id="toyMatchCap"></p>
+  <h3>Noisy endpoints in the toy</h3>
+  <div class="controls"><span>Requested endpoint</span>
+    <div class="seg" role="group" aria-label="Requested endpoint" id="toyTau">
+      <button type="button" id="tq0" aria-pressed="false" data-v="0.25">τ_t = 0.25</button>
+      <button type="button" id="tq1" aria-pressed="false" data-v="0.50">0.50</button>
+      <button type="button" id="tq2" aria-pressed="true" data-v="0.75">0.75</button>
+      <button type="button" id="tq3" aria-pressed="false" data-v="1.00">1.00</button>
+    </div></div>
+  <div class="controls"><label for="toyLayer3">Block</label>
+    <input type="range" class="toyLayerSl" id="toyLayer3" min="0" max="8" step="1" value="0">
+    <button type="button" class="playBtn" id="toyPlay3">Play</button>
+    <span class="stat toyLayerStat"></span></div>
+
+  <div class="scat">
+    <div class="fig"><span class="ttl2" id="toyPathTitle">Readout path over blocks (60 samples)</span><div id="toyPaths"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--muted)"></i>path over layers</span><span>● readout at the selected block</span><span>○ exact target δ*₀,ₜ</span></div></div>
+    <div class="fig" style="justify-items:stretch"><div class="chart" id="c_toyclean"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>KL(clean sentence ‖ readout)</span><span><i class="sw dash" style="border-color:var(--s2)"></i>KL(exact target ‖ readout)</span></div></div>
+  </div>
+  <p class="prose cap" id="toyRenoiseCap"></p>
+</section>
+
+<section>
+  <span class="eyebrow">Controls</span>
+  <h2>Where the noise shows up</h2>
+  <div class="twocol">
+    <div class="fig"><div class="chart" id="c_seed"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s1)"></i>vs FMLM 1-step output</span><span><i class="sw" style="border-color:var(--s2)"></i>vs FLM 128-step output</span><span><i class="sw dot" style="border-color:var(--sg)"></i>block-0 readout (vs FMLM)</span></div>
+      <p class="cap"><b>Noise seeding.</b> A context-free rule picks, at each position, <span class="m">argmax_v [log marginal(v) + β·z(v)]</span>: the marginal perturbed by that position's own noise. At β = 2 it predicts 40% of FMLM's output tokens and 33% of the teacher's. Much of the sentence is fixed by the noise before any context is used, much as noise fixes an image's coarse layout.</p></div>
+    <div style="display:grid;gap:12px;align-content:start">
+      <h3>Caveats</h3>
+      <ul class="plain">
+        <li><b>The plateau is readout-dependent.</b> Blocks 2–6 look like marginal blur under W_out, but a tuned lens decodes more there (agreement 0.48 vs 0.41 at block 6). Read those blocks as a computational stage, not a noisy state.</li>
+        <li><b>Student and teacher endpoints differ.</b> Same noise, 49% token agreement. Direct student-versus-teacher distances are confounded, so the depth-to-time mapping uses own-endpoint normalization.</li>
+        <li><b>The tuned lens is a ridge fit on logits,</b> not a cross-entropy fit, so its entropies are not fully calibrated.</li>
+        <li><b>Mixing fit.</b> δ^i ≈ α·δ^L + μ·marginal fits blocks 2–6 well (held-out R ≈ 0.22) and the rest poorly (R ≈ 0.4–1.0).</li>
+      </ul>
+      <h3>Next</h3>
+      <ul class="plain">
+        <li><b>Done below:</b> OpenWebText replication, then layer reuse (paper Sec. 5).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="owt">
+  <span class="eyebrow">Replication</span>
+  <h2>Same probes on the OpenWebText checkpoints</h2>
+  <p class="prose">This is FMLM-B-OWT with its FLM teacher. The 12-block DiT is the same as before. The vocabulary is GPT-2 (50,257 tokens) and sequences are 1024 tokens long. The probes are unchanged: 128 noise samples for the lens and 64 for the rest. Orange is LM1B, from the sections above; blue is OWT.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_owt_agree"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span><span><i class="sw dash" style="border-color:var(--sg)"></i>random probe (OWT)</span></div>
+      <p class="cap"><b>Progress across depth:</b> argmax agreement of each block's readout with the model's own output. Both curves rise monotonically, with one jump each: at block 7 for LM1B and block 5 for OWT. A random probe does not reproduce either curve.</p></div>
+    <div class="fig"><div class="chart" id="c_owt_ent"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span></div>
+      <p class="cap"><b>The same four phases:</b> a blurred plateau, an abrupt commit, over-sharpening (lowest entropy at block 9 in both), and a final re-blur toward the output. The OWT plateau is lower and shorter (blocks 1–4).</p></div>
+    <div class="fig"><div class="chart" id="c_owt_match"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span><span>solid: self ruler · dashed: teacher ruler</span></div>
+      <p class="cap"><b>State matching:</b> the measured flow time whose state each block's readout reproduces. Both models start at τ ≈ 0. In LM1B the time jumps at block 7. In OWT it climbs over blocks 4–8; on the teacher ruler it reads .12 → .37 → .67 → .89. That is closer to the gradual sweep of the image paper.</p></div>
+    <div class="fig"><div class="chart" id="c_owt_renoise"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span></div>
+      <p class="cap"><b>Denoise, then renoise,</b> for the noisy endpoint 0 → τ_t = 0.1. The plot shows −log δ^i[clean tokens]. Both models are closest to the clean sentence a block or two before the output, then move back out to the requested blur.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_owt"></table></div>
+    <p class="cap">"Transition block" is the block whose substitution breaks the network (see the heatmaps in the next section). It is the block right before the commit in both models.</p>
+  </div>
+</section>
+
+<section id="reuse">
+  <span class="eyebrow">Paper Sec. 5</span>
+  <h2>Can the blocks be reused?</h2>
+  <p class="prose">Before any training, we tested which blocks can stand in for one another. Block i is replaced by block j, and we measure the output's token agreement with the unmodified network. Interchangeable blocks are what one shared block has to emulate.</p>
+  <div class="controls"><span>Model</span>
+    <div class="seg" role="group" aria-label="Substitution model" id="swapSeg">
+      <button type="button" aria-pressed="true" data-v="lm1b">LM1B</button>
+      <button type="button" aria-pressed="false" data-v="owt">OWT</button>
+      <button type="button" aria-pressed="false" data-v="cities">toy cities</button>
+    </div></div>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_swap"></div>
+      <p class="cap" id="swapCap"></p></div>
+    <div class="fig"><div class="chart" id="c_reuse_curve"></div>
+      <div class="legend" id="lg_reuse"></div>
+      <p class="cap"><b>Distillation into shared blocks (LM1B),</b> agreement with the teacher during training. Training is data-free: noise only. The embedding, time embedders and head are copied and frozen. The loss is the paper's Eq. 7, normalized hidden-state matching plus endpoint KL. Each shared block starts from the teacher block with the lowest initial loss. The middle block (6) is the worst choice: it is the irreplaceable one, and its initial loss is 3·10⁵ against 6 for the best block.</p></div>
+  </div>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_reuse_params"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s3)"></i>shared + clock, 12 applications (best grouping per size)</span><span><i class="sw dash" style="border-color:var(--s7)"></i>untied, N blocks applied once</span><span>● other 2-block / no-clock variants</span></div>
+      <p class="cap"><b>Reuse vs. a smaller network at equal parameters</b> (full protocol: 1,024 samples × 3 seeds; error bars are below 0.002). The gap is large with 1–2 blocks: +0.17 agreement at 1 block and +0.13 at 2. It shrinks to +0.05 at 3 blocks and about +0.02 at 4–6. With 2 blocks, the grouping matters more than anything else. Keeping the transition block 6 separate (S B6 S) gives 0.75, which an untied network reaches only with 4 blocks. Alternating two blocks gives 0.69, and splitting them early/late gives 0.66. <b>Training seeds:</b> the key comparison was retrained with two more seeds. Agreement is 0.751 ± 0.001 for 2 shared blocks with block 6 separate, 0.751 ± 0.001 for untied 4 blocks and 0.621 ± 0.001 for untied 2 blocks (Gen. PPL 123.3, 129.2 and 173.0). The conclusion does not depend on the seed.</p></div>
+    <div class="fig"><div class="chart" id="c_reuse_ppl"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s3)"></i>shared + clock</span><span><i class="sw dash" style="border-color:var(--s7)"></i>untied</span><span><i class="sw dot" style="border-color:var(--sg)"></i>teacher</span></div>
+      <p class="cap"><b>Gen. PPL and entropy.</b> Read them together. A Gen. PPL below the teacher's with entropy under 4.0 means repetitive text, e.g. untied N = 1 (105 / 3.75) and the 1–2-block variants without a separate block 6. The structured 2–4-block models stay near the teacher's entropy (4.08–4.09 vs 4.15) at Gen. PPL 124–125. Untied networks of the same size are worse (173 at N = 2, 134 at N = 3).</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_reuse"></table></div>
+    <p class="cap"><b>Full-protocol evaluation</b> (mean ± std over 3 seeds of 1,024 one-step samples). Teacher blocks are 12 × 7.68M = 92.1M; the full model is 139.3M with 47M of embedding and head. <b>tied_struct</b> (groups 0 | 1 | 2–5 | 6 | 7–10 | 11) keeps Gen. PPL and entropy at the teacher's level with half the block parameters. The same recipe on OWT (0 | 1–3 | 4 | 5–10 | 11, 2.4×) does too: 171.8 / 5.06 vs 168.9 / 5.17. At that size the untied 6-block network is almost as good, at half the compute. The clock helps, as in the paper's App. C.4: 0.66 vs 0.60 agreement for one shared block, and the clock-free run collapsed once during training.</p>
+  </div>
+  <div class="twocol">
+    <div class="fig">
+      <div class="tablewrap"><table class="num" id="t_reuse_toy"></table></div>
+      <p class="cap"><b>Toy cities</b> (teacher 2.51M parameters, 6000 steps). Every variant reproduces the teacher, including one block applied 8 times and half the applications (K = 4). The toy is too easy to tell clock from no clock.</p></div>
+    <div style="display:grid;gap:12px;align-content:start">
+      <h3>What this does not show yet</h3>
+      <ul class="plain">
+        <li><b>Compute is unchanged</b> for the tied variants: each still applies 12 blocks. Fewer applications (K &lt; 12) of shared blocks are untested on LM1B. The untied control is the only K = 6 run.</li>
+        <li><b>Reuse vs. a smaller network.</b> At 6 blocks the untied control nearly matches tied_struct (+0.02 agreement). Below 4 blocks reuse is clearly worth it (see the parameter curve). Even then, one block does not reproduce the whole network, unlike the paper's image setting.</li>
+        <li><b>The 3- and 4-block groupings plateau at 0.76.</b> They are barely better than 2 blocks. Grouping blocks 0–5 into one block may be the bottleneck. Finer early groupings have not been tried.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="commit">
+  <span class="eyebrow">Per-token view</span>
+  <h2>How does a one-step language model decide each token?</h2>
+  <p class="prose">For every position we find its <b>commit depth</b>: the first block from which the readout's argmax stays at the final token. We measured 32,768 LM1B positions and 65,536 OWT positions. Images sharpen everywhere at once. Language tokens are decided one by one, in confidence order, and are revised before they commit.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_commit_hist"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B, all tokens</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT, all tokens</span><span><i class="sw dash" style="border-color:var(--s2)"></i>LM1B, noise-seeded tokens</span><span><i class="sw dash" style="border-color:var(--s1)"></i>OWT, noise-seeded tokens</span></div>
+      <p class="cap"><b>Three groups.</b> Noise-seeded tokens (40% of the output) mostly commit at block 0. About a quarter of all tokens commit together at the transition point: block 7 on LM1B, block 5 on OWT. The rest trickle in over the refinement blocks. The spread within one sentence (std 4.0) equals the spread over all sentences (4.0): tokens of the same sentence commit at different depths.</p></div>
+    <div class="fig"><div class="chart" id="c_commit_conf"></div>
+      <div class="legend"><span><i class="sw" style="border-color:var(--s2)"></i>LM1B</span><span><i class="sw" style="border-color:var(--s1)"></i>OWT</span></div>
+      <p class="cap"><b>Confidence sets the order.</b> Mean commit depth by decile of the final probability of the token: the least confident tokens commit at block 10–11, the most confident at block 1–2. This is the order of confidence-based unmasking in masked diffusion samplers. Position plays no role (Spearman 0.00).</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_commit"></table></div>
+    <p class="cap">Spearman correlations with commit depth are signed so that positive means "earlier". The correlation with the teacher's own lock step along its 128-step trajectory (0.34 / 0.44) mostly disappears once confidence is controlled (0.0–0.3 within confidence quintiles): both models decide confident tokens first. <b>Unlike masked diffusion, decisions are revised.</b> Right before committing, a position usually shows another candidate token (57–66%), rarely the mask-like marginal filler (7–9%). Most positions switch their argmax 1–3 times across depth.</p>
+  </div>
+</section>
+
+<section id="depend">
+  <span class="eyebrow">Per-token view, continued</span>
+  <h2>Early tokens become context for later ones</h2>
+  <p class="prose">We define a dependency between two positions with an intervention. Resample the noise at position j alone, then measure how far the one-step output moves at position i: D<sub>j→i</sub> = KL(p<sub>i</sub>(z) ‖ p<sub>i</sub>(z with z<sub>j</sub> resampled)). We used 32 LM1B and 8 OWT samples, each with all positions j and two resamples per position. Strongly dependent tokens do not commit together. They commit in order, and the dependence runs from earlier tokens to later ones.</p>
+  <div class="controls"><span>Model</span>
+    <div class="seg" role="group" aria-label="Dependency model" id="depSeg">
+      <button type="button" aria-pressed="true" data-v="lm1b">LM1B</button>
+      <button type="button" aria-pressed="false" data-v="owt">OWT</button>
+    </div></div>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_dep_cls"></div>
+      <div class="legend" id="lg_dep_cls"></div>
+      <p class="cap"><b>A skeleton first, content words at the transition.</b> The chart shows the commit-depth distribution by token class. Punctuation and function words commit early, often at block 0. Content words commit at the transition block: 38% at block 7 on LM1B, 46% at block 5 on OWT. The rest commit during refinement.</p></div>
+    <div class="fig">
+      <div class="tablewrap"><table class="num" id="t_dep"></table></div>
+      <p class="cap"><b>Directed, not synchronous.</b> At equal distance, pairs with stronger dependency do not commit at more similar depths (rank correlation −0.17 to 0.00). Instead, a token that commits earlier moves a later-committing token 2.3–3.2× more than the reverse, at every distance. Tokens that depend more on the rest of the sentence commit later (0.65 / 0.62). A single forward pass therefore conditions later decisions on earlier ones, as masked diffusion does across sampling steps.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_dep_ms"></table></div>
+    <p class="cap"><b>The same order inside multi-step sampling</b> (4-step FMLM). Within every step, commit depth follows confidence. In later steps more tokens arrive already decided (committed at block 0). The share committing at the transition block stays about the same in every step: it is a fixed stage of the network, not a noise level.</p>
+  </div>
+</section>
+
+<section id="sweepB">
+  <span class="eyebrow">Why the jump</span>
+  <h2>Token dependencies make the commit late and synchronous</h2>
+  <p class="prose">This tests a toy hypothesis: a language posterior mixes discrete sentences, so tokens that depend on each other must be decided jointly. Each toy has length-8 sentences over 16 tokens, built from independent chunks of c tokens. Each chunk takes one of m random strings, so the posterior is exact. c = 1 makes the tokens independent; c = 8 makes the sentence one joint choice. We train FLM, distill an FMLM with 8 blocks from the exact denoiser, and measure the state-matching time τ* of every block. Results are the mean of 3 seeds, each with a new dataset.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_sweep_dep"></div>
+      <div class="legend" id="lg_sweep_dep"></div>
+      <p class="cap"><b>Dependency length (m = 4 per chunk).</b> With independent tokens, block 0 already sits at τ* ≈ 0.30 and the time rises steadily: each position can decide on its own. As the dependency length grows, early blocks stay at τ* ≈ 0 and the decision is deferred to a late jump. Fully joint sentences start at 0.02 and have a maximum jump of 0.45.</p></div>
+    <div class="fig"><div class="chart" id="c_sweep_b16"></div>
+      <div class="legend" id="lg_sweep_b16"></div>
+      <p class="cap"><b>Twice the depth (16 blocks).</b> Independent tokens spread their progress over all 16 blocks (max jump 0.12). Fully joint sentences with 4 modes still jump, now in the middle (blocks 8–10, from .32 to .92), followed by refinement: the commit is a real decision event, not a lack of depth. With 16 modes the 8-block jump disappears at 16 blocks. That jump was a depth limit, so "more modes, more jump" does not hold.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_sweep"></table></div>
+    <p class="cap">8 blocks, width 128, 3 seeds (mean ± std). "Within-sentence spread" is the std of commit depth across the positions of one sample; lower means the tokens commit together. Configurations with 64 and 256 modes do not fit at this size (endpoint agreement 0.65 and 0.21, still 0.72 and 0.52 at width 256) and are left out of the conclusions. The picture is consistent with the per-token view. A few positions decide locally and early (seeded, confident tokens). Coordinated decisions wait for a commit block and are then revised in confidence order.</p>
+  </div>
+</section>
+
+<section id="trajsup">
+  <span class="eyebrow">Direction C</span>
+  <h2>Can depth be made to follow the flow?</h2>
+  <p class="prose">We fine-tune the one-step model so that block i's readout matches the flow at τ = i/L, while the endpoint stays on its original target. The loss is Σ<sub>i</sub> w<sub>i</sub> KL(δ<sub>0,τ<sub>i</sub></sub> ‖ δ<sup>i</sup>), with weight 1 on the last block and λ on the others. The toy targets are the exact flow. On LM1B the target is the original model's own answer to the query 0 → τ<sub>i</sub>, and a second term keeps its other (s, t) queries. λ = 0 is the control: the same fine-tuning on the endpoint only.</p>
+  <div class="figrow">
+    <div class="fig"><div class="chart" id="c_ts_toy"></div>
+      <div class="legend" id="lg_ts_toy"></div>
+      <p class="cap"><b>Toy: the stall is not needed.</b> The plot shows the fraction of valid sentences when sampling from block i (early exit), with λ = 0 (dashed) and λ = 0.1 (solid), mean of 3 seeds. Before supervision no block before 5 produces a valid sentence. With it, independent tokens are done by block 2 and joint sentences rise gradually. The endpoint barely moves (agreement with the exact endpoint, λ = 0 → 0.1): 0.974 → 0.962 for c = 1 and 0.979 → 0.976 for c = 8. Joint data costs the least, against our prediction.</p></div>
+    <div class="fig"><div class="chart" id="c_ts_lm"></div>
+      <div class="legend" id="lg_ts_lm"></div>
+      <p class="cap"><b>LM1B: early exit from late blocks.</b> One-step Gen. PPL when sampling from block i (blocks 7–12; 1,024 samples). With supervision, block 11 is as good as the output (104 vs 102) and block 10 is close (111). The control at the same blocks gives 130 and 175. Blocks 2–6 are low-entropy filler (2.8–3.7) by design, since their targets are early, blurred times.</p></div>
+  </div>
+  <div class="fig">
+    <div class="tablewrap"><table class="num" id="t_ts"></table></div>
+    <p class="cap"><b>LM1B, 15k fine-tuning steps</b> (endpoint: 1,024 samples × 3 seeds). Supervision halves the gap to the schedule in blocks 1–9 (mean KL about 1.9 → 0.8–0.9) and keeps endpoint quality. Gen. PPL and entropy equal the control's; agreement with the original model drifts from 0.89 to 0.83. <b>The finish cannot be pulled forward.</b> Schedules that reach τ = 1 at block 8 or 10 give the same block-8 quality as the uniform schedule (138 vs 131), and the middle blocks miss their targets (KL 1.4–1.7 at blocks 5–6). Unlike the toy, the late commit on LM1B seems to need the depth, at least within this fine-tuning budget. For saving compute, a 6-block network distilled directly (Gen. PPL 119 at half the compute, see above) beats early exit at block 8 (2/3 of the compute).</p>
+  </div>
+</section>
+
+<footer>
+  <span>Sanity: block-12 readout equals the model output (max abs diff 0). One-step FMLM Gen. PPL 118.1 (paper 119.3); FLM 128 steps 117.4 (paper 112.5).</span>
+  <span>Code and raw numbers: <code>flm/depth_as_time/</code> (<code>lens.py</code>, <code>probe_onestep.py</code>, <code>probe_multistep.py</code>, <code>probe_controls.py</code>, <code>results/figs/summary.json</code>). Also <code>probe_statematch.py</code>, <code>probe_blocks.py</code>, <code>compress.py</code>, <code>results/owt/</code>, <code>results/compress/</code>. Each probe ran in 1–5 minutes on one GB200.</span>
+</footer>
+</div>

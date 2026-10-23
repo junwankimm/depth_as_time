@@ -1,0 +1,6 @@
+# Large or regenerable outputs: keep summaries (json, png), not checkpoints or raw stats
+results/**/*.pt
+results/**/*.npz
+results/*backup*
+logs/
+__pycache__/

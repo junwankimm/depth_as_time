@@ -1,0 +1,44 @@
+{
+ "name": "lm1b_tied2_alt_K12",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied2_alt",
+  "K": null,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 100,
+  "steps": 1500,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 500,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 1500,
+  "n_eval": 64,
+  "ckpt_every": 1500,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress_smoke2"
+ },
+ "init": [
+  1,
+  3
+ ],
+ "n_teacher": 139342394,
+ "n_student": 62664250,
+ "n_trainable": 15454208,
+ "log": [
+  {
+   "agree_teacher": 0.538818359375,
+   "kl_teacher": 2.0917816162109375,
+   "gen_ppl": 85.07192409738467,
+   "entropy": 3.7745763435959816,
+   "gen_ppl_teacher": 114.68402885943132,
+   "entropy_teacher": 4.136703051626682,
+   "sample": "[CLS] that the ' s is. [CLS] but this is have a in that mr as with like and new country in work. [CLS] has for they are s \" he that, on the world of themselves on the time, one of one in the only of in as this time, that for that will",
+   "step": 1500
+  }
+ ]
+}

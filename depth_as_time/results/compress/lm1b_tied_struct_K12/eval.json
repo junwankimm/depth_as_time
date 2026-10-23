@@ -1,0 +1,98 @@
+{
+ "name": "lm1b_tied_struct_K12",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied_struct",
+  "K": null,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 1000,
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress"
+ },
+ "init": [
+  0,
+  1,
+  3,
+  6,
+  9,
+  11
+ ],
+ "n_teacher": 139342394,
+ "n_student": 93375034,
+ "n_trainable": 46164992,
+ "log": [
+  {
+   "agree_teacher": 0.794342041015625,
+   "kl_teacher": 0.42407115921378136,
+   "gen_ppl": 117.756213916396,
+   "entropy": 4.096783058717847,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s today. [CLS] but this is just a deal that have as well like and this being in november. [CLS] and for the are now a is thatr on the world and banks on the street, much of one food be increase washington in from this month, that the country will",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.8077392578125,
+   "kl_teacher": 0.37314605712890625,
+   "gen_ppl": 117.37730027379799,
+   "entropy": 4.10367510933429,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that men ' s today. [CLS] but this is just a deal that have as well like and this being in november. [CLS] and for the are now a is thatr than the world and banks on the street, much of one food be increase washington in earlier this month, that the country will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.81439208984375,
+   "kl_teacher": 0.3497646935284138,
+   "gen_ppl": 115.96718375490052,
+   "entropy": 4.105854022316635,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s today. [CLS] but this is just a deal that have as well like and this being in november. [CLS] and for the are now a is that focused on the world and only on the street, much of one food be increase washington in around this month, that the country will",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.820281982421875,
+   "kl_teacher": 0.3315511494874954,
+   "gen_ppl": 114.62453946476482,
+   "entropy": 4.105047699995339,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s today. [CLS] but this is just a deal that have as well like and this being in november. [CLS] and for the same now as is that more on the world and only on the street, much of one food be increase washington in around this month, that the country will",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.821807861328125,
+   "kl_teacher": 0.3249718099832535,
+   "gen_ppl": 116.56913698893923,
+   "entropy": 4.108889530412853,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s today. [CLS] but this is just a deal that have as well like and this being in november. [CLS] and for the same now as is that that on the world and only on the street, much of one food be in washington in earlier this month, that the country will",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.82476806640625,
+   "kl_teacher": 0.31584716215729713,
+   "gen_ppl": 115.71703915214947,
+   "entropy": 4.109660612419248,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s today. [CLS] but this is just a deal that have as well like and this being in iran. [CLS] and for the same now as is that more on the world can only on the street, much of one food be increase washington in earlier this month, that the country will",
+   "step": 150000
+  }
+ ]
+}

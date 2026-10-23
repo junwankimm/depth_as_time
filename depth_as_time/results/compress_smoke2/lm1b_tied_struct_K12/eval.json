@@ -1,0 +1,48 @@
+{
+ "name": "lm1b_tied_struct_K12",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied_struct",
+  "K": null,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 100,
+  "steps": 1500,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 500,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 1500,
+  "n_eval": 64,
+  "ckpt_every": 1500,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress_smoke2"
+ },
+ "init": [
+  0,
+  1,
+  3,
+  6,
+  9,
+  11
+ ],
+ "n_teacher": 139342394,
+ "n_student": 93375034,
+ "n_trainable": 46164992,
+ "log": [
+  {
+   "agree_teacher": 0.725830078125,
+   "kl_teacher": 0.7437141537666321,
+   "gen_ppl": 118.04396371181963,
+   "entropy": 4.069842141121626,
+   "gen_ppl_teacher": 114.68402885943132,
+   "entropy_teacher": 4.136703051626682,
+   "sample": "[CLS] that that ' s today are not but this is also a time that have both well like and new being as issues. [CLS] my for they are now a months thatr on the world and banks on the obama, much of one in bed washington people from this month, that the country will",
+   "step": 1500
+  }
+ ]
+}

@@ -1,0 +1,96 @@
+{
+ "name": "lm1b_tied_struct_K12_g3",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied_struct",
+  "K": null,
+  "split": 7,
+  "groups": "0-5|6|7-11",
+  "init": "auto",
+  "log_every": 1000,
+  "tag": "_g3",
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress"
+ },
+ "init": [
+  1,
+  6,
+  10
+ ],
+ "n_teacher": 139342394,
+ "n_student": 70341946,
+ "n_trainable": 23131904,
+ "log": [
+  {
+   "agree_teacher": 0.6898193359375,
+   "kl_teacher": 0.9093881249427795,
+   "gen_ppl": 134.49107613345566,
+   "entropy": 4.0394343715161085,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is. [CLS] but this is just a deal that have as well like and this being as different. [CLS] obama for the same now team is problem through on the world and may on the obama, much of one food thed washington in around this month, that the country will",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.720855712890625,
+   "kl_teacher": 0.7541771084070206,
+   "gen_ppl": 131.81902479503,
+   "entropy": 4.056509458459914,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the here s is are [CLS] but this is just a deal that have as well like and this is in november. [CLS] \" for the same now team is thatr than the world and only on the better, much of one food thed washington in from this month, that the country will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.739471435546875,
+   "kl_teacher": 0.6747158914804459,
+   "gen_ppl": 129.11237779462218,
+   "entropy": 4.063756321556866,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are [CLS] but this is just a deal that have as well like and this is as different. [CLS] and for the same now as months thatr than the world and only on the better, much of one food thed washington in from this month, that the country will",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.75030517578125,
+   "kl_teacher": 0.6230809688568115,
+   "gen_ppl": 126.68692671137778,
+   "entropy": 4.069891547784209,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the here s is are [CLS] but this is just a deal that mr as well like and this is as different. [CLS] and for the same now as the thatr than the world and only on the house, much of one food the in washington in from this month, that the country will",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.754425048828125,
+   "kl_teacher": 0.592176616191864,
+   "gen_ppl": 126.2908908455908,
+   "entropy": 4.0757759073749185,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are not but this is just a deal that have as well like and this is as different. [CLS] and for the same now as around thatr than the world and only on the day, much of one food the in washington in earlier this month, that the country will",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.762420654296875,
+   "kl_teacher": 0.5674124881625175,
+   "gen_ppl": 126.15594079845636,
+   "entropy": 4.080285040661693,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are not but this is just a deal that mr as well like and this is as young. [CLS] and for the same now as is thatr than the world and only on the house, much of one food the in washington in earlier this month, that the country will",
+   "step": 150000
+  }
+ ]
+}

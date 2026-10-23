@@ -1,0 +1,114 @@
+{
+ "name": "fmlm-b-lm1b_lam1_mu1",
+ "args": {
+  "model": "FMLM-B-LM1B",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "ppl_model": "openai-community/gpt2-large",
+  "lam": 1.0,
+  "mu": 1.0,
+  "steps": 30,
+  "batch_size": 32,
+  "lr": 1e-05,
+  "warmup": 500,
+  "ema": 0.999,
+  "log_every": 10,
+  "time_budget": 0,
+  "n_eval": 64,
+  "eval_seeds": "1",
+  "eval_bs": 64,
+  "out": "results/trajsup_smoke",
+  "tag": ""
+ },
+ "steps_done": 30,
+ "taus": [
+  0.08333333333333333,
+  0.16666666666666666,
+  0.25,
+  0.3333333333333333,
+  0.4166666666666667,
+  0.5,
+  0.5833333333333334,
+  0.6666666666666666,
+  0.75,
+  0.8333333333333334,
+  0.9166666666666666,
+  1.0
+ ],
+ "endpoint": {
+  "gen_ppl": [
+   119.43439541227539
+  ],
+  "entropy": [
+   4.147517904639244
+  ],
+  "agree_original": [
+   0.9925537109375
+  ]
+ },
+ "early_exit": {
+  "gen_ppl": [
+   222.72098346112338,
+   133.54230391894117,
+   93.75615137894783,
+   89.05776518650124,
+   94.10973246471981,
+   95.98439975143079,
+   97.40392943587398,
+   289.7365974658969,
+   272.1820828175235,
+   278.43061592492165,
+   197.72116591154216,
+   147.36248144351063,
+   119.43439541227539
+  ],
+  "entropy": [
+   3.8657534681260586,
+   3.6092477440834045,
+   3.398052804172039,
+   3.404355939477682,
+   3.4339519515633583,
+   3.4626307636499405,
+   3.4968714639544487,
+   4.219322577118874,
+   4.2505586966872215,
+   4.324555642902851,
+   4.234785079956055,
+   4.18124034255743,
+   4.147517904639244
+  ],
+  "agree_own_final": [
+   0.2664794921875,
+   0.2913818359375,
+   0.3057861328125,
+   0.33642578125,
+   0.3572998046875,
+   0.3819580078125,
+   0.4051513671875,
+   0.599365234375,
+   0.66015625,
+   0.7265625,
+   0.8114013671875,
+   0.8885498046875,
+   1.0
+  ]
+ },
+ "kl_to_schedule": [
+  2.8386,
+  1.8963,
+  1.745,
+  1.6931,
+  1.6484,
+  1.7433,
+  1.8833,
+  1.8498,
+  2.0443,
+  1.1877,
+  0.3402,
+  0.0005
+ ],
+ "samples": [
+  "[CLS] as that. \" [CLS] in fact he might write for the two blacks and nephews. [CLS] it has been claimed, the company as a major part of north - how to pay their \" until they \" a information. [CLS] this has taken a major turn \" as some of them for the state and the not - of - one put too who is under, or not for a better future. [CLS] but with cash up, he had time, as one through it month even.. [CLS] the system has since service for the control and those have all four offs, it said. [CLS] most new, they are released in the [CLS]",
+  "[CLS] me because you are never looking money to be good around. [CLS] the number of public has helped to suggest that an \" even of people and for would come to win a percentage point for the house is run out to a have been so at. [CLS] \" we would do from $ 1, 500 and get information and at large five there these children they see with you ( 2 )? [CLS] and 2 or join them in 4 : 5 post - 1 age. [CLS] more than ever minutes to make a run, into a court that was built on what ' s not. [CLS] half is set. [CLS] i ' d like, for [CLS]",
+  "[CLS] the house in south of, and, a man, to whom was the final family. [CLS] last week to another guy his just $ the million, 000. if they child, he is stepping in to be the health and safety of children out under his best. [CLS] just stick with the support, it ' s your own cash as a high when the women can. [CLS]t. \" street the death ( 30, think or not half ) - to - let set a set remain on film. [CLS] i think work, but most of the people members are that he has grown up and gone on. [CLS] this central and this [CLS]"
+ ]
+}

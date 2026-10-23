@@ -1,0 +1,96 @@
+{
+ "name": "lm1b_untied_K3",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "untied",
+  "K": 3,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 1000,
+  "tag": "",
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress"
+ },
+ "init": [
+  1,
+  6,
+  10
+ ],
+ "n_teacher": 139342394,
+ "n_student": 70243130,
+ "n_trainable": 23033088,
+ "log": [
+  {
+   "agree_teacher": 0.6749267578125,
+   "kl_teacher": 0.973979577422142,
+   "gen_ppl": 137.68916628620042,
+   "entropy": 4.049046670086682,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that here s history. not but this is just a deal that year as well like and this being in tuesday. [CLS] my for they are now as around 5 through on the world can only be the house, much of one in the state washington people around this month, that the country will",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.687835693359375,
+   "kl_teacher": 0.9054383859038353,
+   "gen_ppl": 135.2802039624004,
+   "entropy": 4.0539517207071185,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that here s history. not but this is just a deal that year as well like and this being in tuesday. [CLS] and for they are now as around 5 through on the world and only be the house, much of one in the state washington people around this month, that the country will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.69732666015625,
+   "kl_teacher": 0.8648924976587296,
+   "gen_ppl": 133.1573026181418,
+   "entropy": 4.0561065739020705,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that here s history. not but this is just a deal that have as well like and this being in tuesday. [CLS] and for they are now as around 5 through on the world and only be the house, much of one in the state washington people around this month, that the country will",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.704376220703125,
+   "kl_teacher": 0.8375334292650223,
+   "gen_ppl": 134.24516190831264,
+   "entropy": 4.062367409467697,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that here s history. not but this is just a deal that have as well like and this being in iran. [CLS] and for they are now as around 5 through than the world can only be the house, much of one in the state washington [CLS] around this month, that the country will",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.706878662109375,
+   "kl_teacher": 0.8149107471108437,
+   "gen_ppl": 133.08616795733326,
+   "entropy": 4.059684214182198,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that here s history. not but this is just a deal that have as well like and this being in iran. [CLS] and for they are now a around have through than the world and only be the house, much of one in the state washington people around this month, that the country will",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.711822509765625,
+   "kl_teacher": 0.7975663989782333,
+   "gen_ppl": 132.1340657746829,
+   "entropy": 4.064154149033129,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that here s history. not but this is just a deal that have as well like and this is in iran. [CLS] and for the are now a around have through than the world and only on the house, much of one in the state washington people around this month, that the country will",
+   "step": 150000
+  }
+ ]
+}

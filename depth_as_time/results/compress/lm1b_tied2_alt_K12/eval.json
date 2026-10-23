@@ -1,0 +1,94 @@
+{
+ "name": "lm1b_tied2_alt_K12",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied2_alt",
+  "K": null,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 1000,
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress"
+ },
+ "init": [
+  1,
+  3
+ ],
+ "n_teacher": 139342394,
+ "n_student": 62664250,
+ "n_trainable": 15454208,
+ "log": [
+  {
+   "agree_teacher": 0.61676025390625,
+   "kl_teacher": 1.4884087890386581,
+   "gen_ppl": 97.52583265615394,
+   "entropy": 3.9228215981274843,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s history are [CLS] but this is just a time that mr lost with like and new york in demand. [CLS] and for they are now as the have more than the world of only on the obama, one of one in the better by [CLS] as this month, that the country will",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.64129638671875,
+   "kl_teacher": 1.313823640346527,
+   "gen_ppl": 101.29023078228035,
+   "entropy": 3.9612431610003114,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s history are [CLS] but this is just a time that mr lost with like and new york in demand. [CLS] and for they are now as the that more than the world of only on the day, much of one in the state of [CLS] from this month, that the country will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.6561279296875,
+   "kl_teacher": 1.2168009728193283,
+   "gen_ppl": 104.81891425634994,
+   "entropy": 3.983105123974383,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s history are not but this is just a time that mr lost will like and this being as demand. [CLS] and for they are now as the that that on the world of only on the house, much of one in the set of [CLS] as this month, that the country will",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.668060302734375,
+   "kl_teacher": 1.1480335891246796,
+   "gen_ppl": 105.92928518830162,
+   "entropy": 3.9952965080738068,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are not but this is just a time that mr lost well like and this being in demand. [CLS] and for they are now as the thatr than the world of others on the street, much of one in the state of [CLS] around this month, that the country will",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.67828369140625,
+   "kl_teacher": 1.091442048549652,
+   "gen_ppl": 106.86293758474693,
+   "entropy": 4.010645593516529,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that the ' s is are not but this is just a time that have lost well like and this being as again. [CLS] and for they are now as around that more than the world of only on the house, much of one in the state 10 [CLS] around this month, that the country will",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.6890869140625,
+   "kl_teacher": 1.0389337688684464,
+   "gen_ppl": 107.2708503242474,
+   "entropy": 4.018434658646584,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s we are not but this is just a time that have as well like and this being as demand. [CLS] and for they same now as around that more than the world can only on the street, much of one in the state of [CLS] around this month, that the country will",
+   "step": 150000
+  }
+ ]
+}

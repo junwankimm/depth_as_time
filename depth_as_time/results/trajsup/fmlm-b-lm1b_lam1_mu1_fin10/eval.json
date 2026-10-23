@@ -1,0 +1,121 @@
+{
+ "name": "fmlm-b-lm1b_lam1_mu1_fin10",
+ "args": {
+  "model": "FMLM-B-LM1B",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "ppl_model": "openai-community/gpt2-large",
+  "lam": 1.0,
+  "mu": 1.0,
+  "finish_block": 10,
+  "steps": 15000,
+  "batch_size": 32,
+  "lr": 1e-05,
+  "warmup": 500,
+  "ema": 0.999,
+  "log_every": 250,
+  "time_budget": 95.0,
+  "n_eval": 1024,
+  "eval_seeds": "1,2,3",
+  "eval_bs": 64,
+  "out": "results/trajsup",
+  "tag": ""
+ },
+ "steps_done": 15000,
+ "taus": [
+  0.1,
+  0.2,
+  0.3,
+  0.4,
+  0.5,
+  0.6,
+  0.7,
+  0.8,
+  0.9,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "endpoint": {
+  "gen_ppl": [
+   102.01185935204963,
+   105.12713009657668,
+   103.72399269906455
+  ],
+  "entropy": [
+   4.108347641536966,
+   4.114307462004945,
+   4.109374324325472
+  ],
+  "agree_original": [
+   0.835174560546875,
+   0.8343963623046875,
+   0.8337631225585938
+  ]
+ },
+ "early_exit": {
+  "gen_ppl": [
+   204.1952961028309,
+   24.17496721740697,
+   47.24769856818989,
+   61.98666916191408,
+   70.85250612893499,
+   70.92577200734209,
+   72.82339055937061,
+   150.1543616144854,
+   134.56972393024412,
+   123.49894409358265,
+   113.64866567264849,
+   105.75424026116056,
+   102.01185935204963
+  ],
+  "entropy": [
+   3.7670135609805584,
+   2.8430266526993364,
+   3.1677534154150635,
+   3.3455946145113558,
+   3.4610867486335337,
+   3.5592124953400344,
+   3.6449312698096037,
+   4.070525162853301,
+   4.074428776046261,
+   4.103547476232052,
+   4.105690557742491,
+   4.11041216715239,
+   4.108347641536966
+  ],
+  "agree_own_final": [
+   0.32202911376953125,
+   0.31504058837890625,
+   0.35516357421875,
+   0.44153594970703125,
+   0.4871826171875,
+   0.5319061279296875,
+   0.566314697265625,
+   0.7211227416992188,
+   0.7818450927734375,
+   0.8592071533203125,
+   0.9018173217773438,
+   0.9425201416015625,
+   1.0
+  ]
+ },
+ "kl_to_schedule": [
+  0.9314,
+  1.0145,
+  0.8993,
+  0.9217,
+  1.0643,
+  1.4223,
+  0.9589,
+  0.7324,
+  0.5307,
+  0.4565,
+  0.3709,
+  0.322
+ ],
+ "samples": [
+  "[CLS] as that. \" [CLS] in september he might campaign for the two house and clintons. [CLS] it has been about from the company as a major part of e - how to pay their \" until they have a month. [CLS] this has taken a major : \" as some of them for the state and is not - it - one with people who is one, or not for a better future. [CLS] but for cash up, he had time, rather one through a month even.. [CLS] street system has since service for the control and those not all the offs, he said. [CLS] most importantly, they are here in the [CLS]",
+  "[CLS] like because you are never looking money to be good around. [CLS] the number of public has risen to indicate that an \" even of people and for many come to win a percentage point for the house is run out to but have been so at. [CLS] \" we would do from $ 1, 500 and i am and at least five there are will they see with you ( 2 )? [CLS] and now he has them in 4 : 5 post - 1 age. [CLS] more than $ 250, 000 a run also into a court that was based on what ' s not. [CLS] half is set. [CLS] i ' d like, for [CLS]",
+  "[CLS] the house in south africa, and at a man, to everyone was the final family. [CLS] last week to another that his banks $ the million, 000. if they believe, he is we need to be the health and safety of children out of his best. [CLS] just fine with the group, it ' s your own cash as a high when the women can [CLS] would no. \" which the death ( 30, first or not half ) - [CLS] he would set a setback on film. [CLS] i think work, but most of the people have. that he has grown up and gone on. [CLS] this central and is [CLS]"
+ ]
+}

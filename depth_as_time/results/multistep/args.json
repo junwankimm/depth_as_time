@@ -1,0 +1,11 @@
+{
+ "student": "FMLM-B-LM1B",
+ "n_samples": 256,
+ "batch_size": 32,
+ "sweep_starts": "0.0,0.5",
+ "sweep_targets": "0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0",
+ "rollout_steps": "2,4,8",
+ "gamma": 0.0,
+ "seed": 0,
+ "out": "results/multistep"
+}

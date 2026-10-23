@@ -1,0 +1,810 @@
+<title>Depth as Time in FMLM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: a single reading column (~720px) for prose; figures and token grids break out to ~1040px. */
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --fg: #14171c;
+  --fg2: #4a515c;
+  --muted: #7a818c;
+  --rule: #dfe2e7;
+  --grid: #eceef1;
+  --accent: #2a78d6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --sg: #8b9099;
+  --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --q1: #a9c8ef; --q2: #78a7e3; --q3: #4a86d4; --q4: #1f5fae;
+  --tok-final-bg: #d9efe4; --tok-final-fg: #0d5a36;
+  --tok-marg-bg: #eceef1; --tok-marg-fg: #7a818c;
+  --tok-other-bg: transparent; --tok-other-fg: #14171c;
+  --display: "IBM Plex Sans Condensed", "IBM Plex Sans KR", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "IBM Plex Sans KR", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111317; --panel: #191c21; --fg: #eceef1; --fg2: #b4bac4; --muted: #868d98;
+    --rule: #2b3038; --grid: #22262d; --accent: #3987e5;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --sg: #8b9099;
+    --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --q1: #2a4466; --q2: #34639c; --q3: #4d86d1; --q4: #8db6ee;
+    --tok-final-bg: #173b2a; --tok-final-fg: #8fe0b4;
+    --tok-marg-bg: #22262d; --tok-marg-fg: #868d98;
+    --tok-other-bg: transparent; --tok-other-fg: #eceef1;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111317; --panel: #191c21; --fg: #eceef1; --fg2: #b4bac4; --muted: #868d98;
+  --rule: #2b3038; --grid: #22262d; --accent: #3987e5;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --sg: #8b9099;
+  --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --q1: #2a4466; --q2: #34639c; --q3: #4d86d1; --q4: #8db6ee;
+  --tok-final-bg: #173b2a; --tok-final-fg: #8fe0b4;
+  --tok-marg-bg: #22262d; --tok-marg-fg: #868d98;
+  --tok-other-bg: transparent; --tok-other-fg: #eceef1;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.prose { max-width: 720px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 26px; font-weight: 600; }
+h3 { font-size: 17px; font-weight: 600; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 18px; color: var(--fg2); }
+section { display: grid; gap: 18px; padding-block: 36px; border-top: 1px solid var(--rule); }
+header { display: grid; gap: 16px; padding-bottom: 32px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); font-family: var(--mono); }
+code, .m { font-family: var(--mono); font-size: 0.9em; }
+.findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.finding { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: grid; gap: 6px; align-content: start; }
+.finding .verdict { font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+.v-yes { color: var(--s3); } .v-part { color: var(--s4); } .v-no { color: var(--s2); }
+.finding p { font-size: 14px; color: var(--fg2); }
+.fig { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.figrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.cap { font-size: 13px; color: var(--fg2); }
+.cap b { color: var(--fg); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--fg2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 16px; height: 0; border-top: 2px solid; display: inline-block; }
+.sw.dash { border-top-style: dashed; } .sw.dot { border-top-style: dotted; }
+.chart { position: relative; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart text { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+.chart .ttl { font-family: var(--body); font-size: 12px; fill: var(--fg); font-weight: 500; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 6px 8px; font-size: 12px; font-family: var(--mono); color: var(--fg); box-shadow: 0 2px 8px rgba(0,0,0,.12); white-space: nowrap; z-index: 2; }
+.tip .row { display: flex; gap: 8px; align-items: center; }
+.tip .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--fg2); }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; background: var(--panel); color: var(--fg2); border: 0; padding: 5px 12px; cursor: pointer; border-right: 1px solid var(--rule); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.gridwrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); }
+table.tok { border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+table.tok td { padding: 2px 3px; white-space: nowrap; }
+table.tok td.lab { position: sticky; left: 0; background: var(--panel); color: var(--muted); padding: 2px 10px; border-right: 1px solid var(--rule); font-size: 11px; }
+table.tok tr.sep td { border-top: 1px solid var(--rule); padding-top: 6px; }
+table.num tr.sep td { border-top: 2px solid var(--rule); }
+table.tok tr.phase td.lab { color: var(--fg); }
+.t { display: inline-block; padding: 1px 4px; border-radius: 3px; }
+.t.f { background: var(--tok-final-bg); color: var(--tok-final-fg); }
+.t.m { background: var(--tok-marg-bg); color: var(--tok-marg-fg); }
+.t.o { background: var(--tok-other-bg); color: var(--tok-other-fg); }
+.key { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--fg2); align-items: center; }
+table.num { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; width: 100%; }
+table.num th, table.num td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--grid); }
+table.num th { font-weight: 500; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+table.num td:first-child, table.num th:first-child { text-align: left; }
+table.num .hi { color: var(--accent); font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+.pipe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-family: var(--mono); font-size: 13px; }
+.pipe .n { border: 1px solid var(--rule); background: var(--panel); border-radius: 6px; padding: 6px 10px; }
+.pipe .n.hl { border-color: var(--accent); color: var(--accent); }
+.pipe .a { color: var(--muted); }
+ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+ul.plain li { color: var(--fg2); }
+ul.plain li b { color: var(--fg); font-weight: 600; }
+.twocol { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.twocol > * { min-width: 0; }
+.scat { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.scat .fig { justify-items: center; }
+.scat svg { width: 100%; max-width: 340px; height: auto; display: block; }
+.scat .ttl2 { font-size: 13px; color: var(--fg); font-weight: 500; justify-self: start; }
+.scat text { font-family: var(--mono); font-size: 9px; fill: var(--muted); }
+input[type=range] { width: min(320px, 100%); accent-color: var(--accent); }
+.playBtn, #lmPlay { font: inherit; font-size: 13px; background: var(--panel); color: var(--fg2); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.playBtn:focus-visible, #lmPlay:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.stat { font-family: var(--mono); font-size: 13px; color: var(--fg2); }
+footer { border-top: 1px solid var(--rule); padding-top: 24px; font-size: 13px; color: var(--muted); display: grid; gap: 8px; }
+footer code { color: var(--fg2); }
+.langbar { position: fixed; top: 12px; right: max(12px, env(safe-area-inset-right, 0px)); z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,.08); border-radius: 6px; }
+:lang(ko) .eyebrow, :lang(ko) .verdict { letter-spacing: 0; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="langbar"><div class="seg" role="group" aria-label="Language" id="langSeg">
+  <button type="button" data-l="en" aria-pressed="true">EN</button><button type="button" data-l="ko" aria-pressed="false">한국어</button>
+</div></div>
+<div id="app"></div>
+<template id="tpl-en">__BODY_EN__</template>
+<template id="tpl-ko">__BODY_KO__</template>
+
+<script id="data" type="application/json">__DATA__</script>
+<script id="toydata" type="application/json">__TOY__</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById('data').textContent);
+  const TOY = JSON.parse(document.getElementById('toydata').textContent);
+  const TIMERS = new Set();
+  function main(lang) {
+  const tr = (en, ko) => (lang === 'ko' ? ko : en);
+  const every = (fn, ms) => { const id = setInterval(fn, ms); TIMERS.add(id); return id; };
+  const NS = 'http://www.w3.org/2000/svg';
+  const range = n => Array.from({length: n}, (_, i) => i);
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function fmt(v) { return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2); }
+
+  // Line chart with a crosshair tooltip. series: {name, x[], y[], color, dash, marker}
+  function lineChart(id, o) {
+    const host = document.getElementById(id);
+    host.innerHTML = '';
+    const W = 460, H = o.h || 260, m = {l: 44, r: 12, t: o.title ? 22 : 10, b: 34};
+    const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': o.title || id}, host);
+    const xs = o.series.flatMap(s => s.x), ys = o.series.flatMap(s => s.y);
+    const x0 = o.xmin ?? Math.min(...xs), x1 = o.xmax ?? Math.max(...xs);
+    const y0 = o.ymin ?? Math.min(0, ...ys), y1 = o.ymax ?? Math.max(...ys) * 1.05;
+    const sx = v => m.l + (v - x0) / (x1 - x0) * (W - m.l - m.r);
+    const sy = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+    if (o.title) { const t = el('text', {x: m.l, y: 13, class: 'ttl'}, svg); t.textContent = o.title; }
+    const yt = o.yticks || range(5).map(i => y0 + (y1 - y0) * i / 4);
+    yt.forEach(v => {
+      el('line', {x1: m.l, x2: W - m.r, y1: sy(v), y2: sy(v), style: 'stroke:var(--grid);stroke-width:1'}, svg);
+      const t = el('text', {x: m.l - 6, y: sy(v) + 3, 'text-anchor': 'end'}, svg); t.textContent = fmt(v);
+    });
+    const xt = o.xticks || range(6).map(i => x0 + (x1 - x0) * i / 5);
+    xt.forEach(v => {
+      const t = el('text', {x: sx(v), y: H - m.b + 14, 'text-anchor': 'middle'}, svg); t.textContent = o.xfmt ? o.xfmt(v) : fmt(v);
+    });
+    el('line', {x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, style: 'stroke:var(--muted);stroke-width:1'}, svg);
+    if (o.xlabel) { const t = el('text', {x: (m.l + W - m.r) / 2, y: H - 4, 'text-anchor': 'middle'}, svg); t.textContent = o.xlabel; }
+    (o.vlines || []).forEach(v => el('line', {x1: sx(v), x2: sx(v), y1: m.t, y2: H - m.b, style: 'stroke:var(--rule);stroke-width:1;stroke-dasharray:3 3'}, svg));
+    o.series.forEach(s => {
+      const segs = s.segments || [range(s.x.length)];
+      segs.forEach(idx => {
+        const d = idx.map((i, k) => (k ? 'L' : 'M') + sx(s.x[i]).toFixed(1) + ' ' + sy(s.y[i]).toFixed(1)).join(' ');
+        el('path', {d, style: `fill:none;stroke:${s.color};stroke-width:${s.width || 2};stroke-linejoin:round;stroke-linecap:round;${s.dash ? 'stroke-dasharray:' + s.dash : ''}`}, svg);
+      });
+      if (s.marker) s.x.forEach((xv, i) => el('circle', {cx: sx(xv), cy: sy(s.y[i]), r: 3.2, style: `fill:${s.color};stroke:var(--panel);stroke-width:1.5`}, svg));
+    });
+    // hover layer
+    const cross = el('line', {y1: m.t, y2: H - m.b, style: 'stroke:var(--muted);stroke-width:1;opacity:0'}, svg);
+    const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; host.appendChild(tip);
+    const hit = el('rect', {x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, style: 'fill:transparent'}, svg);
+    function move(ev) {
+      const r = svg.getBoundingClientRect();
+      const px = (ev.clientX - r.left) / r.width * W;
+      const xv = x0 + (px - m.l) / (W - m.l - m.r) * (x1 - x0);
+      const rows = [];
+      let snap = null;
+      o.series.forEach(s => {
+        if (s.noTip) return;
+        let bi = 0, bd = Infinity;
+        s.x.forEach((v, i) => { const dd = Math.abs(v - xv); if (dd < bd) { bd = dd; bi = i; } });
+        if (snap === null) snap = s.x[bi];
+        rows.push(`<div class="row"><span class="dot" style="background:${s.color}"></span>${s.name}: ${fmt(s.y[bi])}</div>`);
+      });
+      if (snap === null) return;
+      cross.setAttribute('x1', sx(snap)); cross.setAttribute('x2', sx(snap)); cross.style.opacity = 1;
+      tip.innerHTML = `<div style="color:var(--muted)">${o.tipx ? o.tipx(snap) : fmt(snap)}</div>` + rows.join('');
+      tip.hidden = false;
+      const hr = host.getBoundingClientRect();
+      let left = ev.clientX - hr.left + 12;
+      if (left + tip.offsetWidth > hr.width) left = ev.clientX - hr.left - tip.offsetWidth - 12;
+      tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, ev.clientY - hr.top - 10) + 'px';
+    }
+    hit.addEventListener('pointermove', move);
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; cross.style.opacity = 0; });
+  }
+
+  const depth = range(13);
+  const dn = depth.map(i => i / 12);
+  const tauT = D.rho.teacher.tau;
+  const blk = v => tr('block ', '블록 ') + Math.round(v);
+
+  // ---- token grid ----
+  function renderGrid(i) {
+    const g = D.grids[i], tb = document.getElementById('tokgrid');
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    let h = '';
+    g.student.forEach((r, k) => {
+      const ph = (k === 0 || k === 2 || k === 7 || k === 10 || k === 12) ? ' phase' : '';
+      h += `<tr class="${ph}"><td class="lab">FMLM ${r.label}</td>` + r.tok.map((t, p) => `<td><span class="t ${r.cls[p]}">${esc(t)}</span></td>`).join('') + '</tr>';
+    });
+    g.teacher.forEach((r, k) => {
+      h += `<tr class="${k === 0 ? 'sep' : ''}"><td class="lab">FLM ${r.label}</td>` + r.tok.map((t, p) => `<td><span class="t ${r.cls[p]}">${esc(t)}</span></td>`).join('') + '</tr>';
+    });
+    tb.innerHTML = h;
+  }
+  function seg(groupId, attr, fn) {
+    const g = document.getElementById(groupId);
+    g.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      g.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+      fn(b.dataset[attr]);
+    });
+  }
+  renderGrid(0);
+  seg('sampleSeg', 'i', v => renderGrid(+v));
+
+  // ---- rho ----
+  lineChart('c_rho', {title: tr('remaining token disagreement ρ', '남은 토큰 불일치 ρ'), xmin: 0, xmax: 1, ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+    xlabel: tr('normalized progress', '정규화된 진행도'), tipx: v => tr('progress ', '진행도 ') + v.toFixed(2),
+    series: [
+      {name: 'FMLM', x: dn, y: D.rho.depth.disagree, color: 'var(--s1)', marker: true},
+      {name: tr('ridge', '리지'), x: dn, y: D.rho.depth.ridge, color: 'var(--s3)', dash: '5 4'},
+      {name: tr('random', '랜덤'), x: dn, y: D.rho.depth.rand, color: 'var(--sg)', dash: '2 3'},
+      {name: 'FLM', x: tauT.map((_, k) => k / (tauT.length - 1)), y: D.rho.teacher.disagree, color: 'var(--s2)', noTip: true}]});
+  lineChart('c_rhokl', {title: tr('remaining KL ρ', '남은 KL ρ'), xmin: 0, xmax: 1, ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+    xlabel: tr('normalized progress', '정규화된 진행도'), tipx: v => tr('progress ', '진행도 ') + v.toFixed(2),
+    series: [
+      {name: 'FMLM', x: dn, y: D.rho.depth.kl, color: 'var(--s1)', marker: true},
+      {name: 'FLM', x: tauT.map((_, k) => k / (tauT.length - 1)), y: D.rho.teacher.kl, color: 'var(--s2)', noTip: true}]});
+
+  // ---- phases ----
+  const P = D.phase;
+  lineChart('c_ent', {title: tr('entropy of readout (nats)', 'readout 엔트로피 (nats)'), xmin: 0, xmax: 12, ymin: 0, ymax: 7.4, yticks: [0, 2, 4, 6],
+    xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('block', '블록'), tipx: blk,
+    series: [
+      {name: 'W_out', x: depth, y: P.wo_ent, color: 'var(--s1)', marker: true},
+      {name: 'tuned lens', x: depth, y: P.tl_ent, color: 'var(--s3)', dash: '5 4', marker: true},
+      {name: tr('marginal', '주변분포'), x: [0, 12], y: [P.marg_ent, P.marg_ent], color: 'var(--sg)', dash: '2 3', width: 1.5},
+      {name: tr('teacher final', 'teacher 최종'), x: [0, 12], y: [P.teacher_last_ent, P.teacher_last_ent], color: 'var(--s2)', dash: '2 3', width: 1.5}]});
+  lineChart('c_agree', {title: tr('argmax agreement', 'argmax 일치율'), xmin: 0, xmax: 12, ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+    xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('block', '블록'), tipx: blk,
+    series: [
+      {name: tr('own final (W_out)', '자기 최종 (W_out)'), x: depth, y: P.wo_agree, color: 'var(--s1)', marker: true},
+      {name: tr('own final (tuned)', '자기 최종 (tuned)'), x: depth, y: P.tl_agree, color: 'var(--s3)', dash: '5 4'},
+      {name: tr('teacher sample', 'teacher 샘플'), x: depth, y: P.agree_teacher, color: 'var(--s2)', marker: true},
+      {name: tr('marginal argmax', '주변분포 argmax'), x: depth, y: P.agree_marg, color: 'var(--sg)', dash: '2 3'}]});
+  const Q = D.quality.student_layer;
+  document.getElementById('t_quality').innerHTML =
+    `<tr><th>${tr('block', '블록')}</th>` + Q.map(r => `<th>${r.layer}</th>`).join('') + '</tr>' +
+    '<tr><td>Gen. PPL</td>' + Q.map(r => `<td${r.layer === 12 ? ' class="hi"' : ''}>${r.gen_ppl.toFixed(0)}</td>`).join('') + '</tr>' +
+    `<tr><td>${tr('unigram entropy', 'unigram 엔트로피')}</td>` + Q.map(r => `<td${r.layer === 12 ? ' class="hi"' : ''}>${r.entropy.toFixed(2)}</td>`).join('') + '</tr>';
+
+  // ---- effective time ----
+  const E = D.eff;
+  lineChart('c_eff', {title: tr('effective teacher time τ*', '실효 teacher 시간 τ*'), xmin: 0, xmax: 12, ymin: 0, ymax: 1.02, yticks: [0, .25, .5, .75, 1],
+    xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('block', '블록'), tipx: blk,
+    series: [
+      {name: tr('agreement match', '일치율 기준'), x: depth, y: E['progress match (agreement w/ own final)'], color: 'var(--s1)', marker: true},
+      {name: tr('KL match', 'KL 기준'), x: depth, y: E['progress match (KL to own final)'], color: 'var(--s3)', marker: true},
+      {name: tr('uniform', '균등'), x: [0, 12], y: [0, 1], color: 'var(--sg)', dash: '2 3', width: 1.5, noTip: true}]});
+  const T = D.teacher_curve;
+  lineChart('c_teacher', {title: tr('FLM teacher along sampling time', '샘플링 시간에 따른 FLM teacher'), xmin: 0, xmax: 1, ymin: 0, ymax: 7.2, yticks: [0, 2, 4, 6],
+    xlabel: tr('τ (fraction of tokens decided)', 'τ (확정된 토큰 비율)'), tipx: v => 'τ = ' + v.toFixed(3),
+    series: [
+      {name: tr('entropy', '엔트로피'), x: T.tau, y: T.ent, color: 'var(--s2)'},
+      {name: tr('clean = final (×7)', 'clean = 최종 (×7)'), x: T.tau, y: T.agree.map(v => v * 7), color: 'var(--s1)', dash: '5 4'},
+      {name: tr('state = final (×7)', 'state = 최종 (×7)'), x: T.tau, y: T.state_agree.map(v => v * 7), color: 'var(--s5)', dash: '2 3'}]});
+
+  // ---- state matching (LM1B) ----
+  const M = D.match;
+  const LM = {layer: 7, sample: 0, timer: null};
+  lineChart('c_lmmatch', {title: tr('best-matching flow time τ per block (measured)', '블록별로 가장 잘 맞는 flow 시간 τ (측정값)'), xmin: 0, xmax: 12, ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+    xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('block', '블록'), tipx: blk,
+    series: [
+      {name: 'self ruler τ*', x: depth, y: M.self_star, color: 'var(--s1)', marker: true},
+      {name: 'teacher ruler τ*', x: depth, y: M.teacher_star, color: 'var(--s2)', marker: true},
+      {name: tr('mismatch (min L2 / 8)', '불일치 (min L2 / 8)'), x: depth, y: M.self_min.map(v => v / 8), color: 'var(--s3)', dash: '5 4'},
+      {name: tr('uniform', '균등'), x: [0, 12], y: [0, 1], color: 'var(--sg)', dash: '2 3', width: 1.5, noTip: true}]});
+  function renderLm() {
+    const i = LM.layer, sc = M.self_curve[i], tc = M.teacher_curve[i];
+    const js = sc.indexOf(Math.min(...sc)), jt = tc.indexOf(Math.min(...tc));
+    lineChart('c_lmcurve', {title: tr(`block ${i}: L2(δ^i, δ₀,ₜ) along the trajectory`, `블록 ${i}: trajectory를 따라 잰 L2(δ^i, δ₀,ₜ)`), xmin: 0, xmax: 1, ymin: 0, ymax: 10.5, yticks: [0, 2.5, 5, 7.5, 10],
+      xlabel: tr('τ along the flow', 'flow 위의 τ'), tipx: v => 'τ = ' + v.toFixed(2),
+      series: [
+        {name: 'self ruler', x: M.self_tau, y: sc, color: 'var(--s1)'},
+        {name: 'teacher ruler', x: M.teacher_tau, y: tc, color: 'var(--s2)', dash: '5 4'},
+        {name: 'self best', x: [M.self_tau[js]], y: [sc[js]], color: 'var(--s1)', marker: true, noTip: true},
+        {name: 'teacher best', x: [M.teacher_tau[jt]], y: [tc[jt]], color: 'var(--s2)', marker: true, noTip: true}]});
+    document.getElementById('lmLayer').value = i;
+    document.getElementById('lmLayerStat').textContent = `${tr('block', '블록')} ${i}: τ* = ${M.self_star[i].toFixed(2)} (self), ${M.teacher_star[i].toFixed(2)} (teacher)`;
+    const r = M.text[LM.sample][i];
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const a = r.layer_state.split(' '), b = r.self_state.split(' ');
+    const sa = new Set(a), sb = new Set(b);
+    const row = (lab, ws, other) => `<tr><td class="lab">${lab}</td>` + ws.map(w => `<td><span class="t ${other.has(w) ? 'f' : ''}">${esc(w)}</span></td>`).join('') + '</tr>';
+    document.getElementById('lmtext').innerHTML =
+      row(tr(`block ${i} at τ = ${r.tau.toFixed(2)}`, `블록 ${i}, τ = ${r.tau.toFixed(2)}`), a, sb) + row(tr(`flow state at τ = ${r.tau.toFixed(2)}`, `τ = ${r.tau.toFixed(2)}의 flow state`), b, sa).replace('<tr>', '<tr class="sep">');
+  }
+  function lmStop() { if (LM.timer) { clearInterval(LM.timer); LM.timer = null; } document.getElementById('lmPlay').textContent = tr('Play', '재생'); }
+  document.getElementById('lmLayer').addEventListener('input', e => { lmStop(); LM.layer = +e.target.value; renderLm(); });
+  document.getElementById('lmPlay').addEventListener('click', e => {
+    if (LM.timer) { lmStop(); return; }
+    e.target.textContent = tr('Pause', '일시정지');
+    if (LM.layer >= 12) { LM.layer = 0; renderLm(); }
+    LM.timer = every(() => { if (LM.layer >= 12) { lmStop(); return; } LM.layer += 1; renderLm(); }, 700);
+  });
+  seg('lmSample', 'i', v => { LM.sample = +v; renderLm(); });
+  renderLm();
+
+
+  // ---- OWT replication ----
+  const O = D.owt, LMc = 'var(--s2)', OWc = 'var(--s1)';
+  const two = (key, extra) => [{name: 'LM1B', x: depth, y: O.lm1b[key], color: LMc, marker: true},
+                               {name: 'OWT', x: depth, y: O.owt[key], color: OWc, marker: true}].concat(extra || []);
+  const bxO = {xmin: 0, xmax: 12, xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('block', '블록'), tipx: blk};
+  lineChart('c_owt_agree', Object.assign({title: tr('agreement with own final output', '자기 최종 출력과의 일치율'), ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+    series: two('agree', [{name: tr('random probe (OWT)', '랜덤 probe (OWT)'), x: depth, y: O.owt.rand_agree, color: 'var(--sg)', dash: '5 4'}])}, bxO));
+  lineChart('c_owt_ent', Object.assign({title: tr('entropy of W_out readout (nats)', 'W_out readout 엔트로피 (nats)'), ymin: 0, ymax: 5.8, yticks: [0, 1, 2, 3, 4, 5],
+    series: two('ent')}, bxO));
+  lineChart('c_owt_match', Object.assign({title: tr('matched flow time τ* (measured)', '맞춰진 flow 시간 τ* (측정값)'), ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+    series: two('self_star', [{name: 'LM1B teacher ruler', x: depth, y: O.lm1b.teacher_star, color: LMc, dash: '5 4'},
+                              {name: 'OWT teacher ruler', x: depth, y: O.owt.teacher_star, color: OWc, dash: '5 4'}])}, bxO));
+  lineChart('c_owt_renoise', {title: tr('−log δ^i[clean tokens], query 0 → τ_t = 0.1', '−log δ^i[clean 토큰], 쿼리 0 → τ_t = 0.1'), xmin: 4, xmax: 12, ymin: 0, ymax: 4.2, yticks: [0, 1, 2, 3, 4],
+    xticks: [4, 6, 8, 10, 12], xlabel: tr('block', '블록'), tipx: blk,
+    series: [{name: 'LM1B', x: depth.slice(4), y: O.lm1b.nll_t01.slice(4), color: LMc, marker: true},
+             {name: 'OWT', x: depth.slice(4), y: O.owt.nll_t01.slice(4), color: OWc, marker: true}]});
+  {
+    const a = O.lm1b, b = O.owt, mn = v => Math.min(...v.slice(0, 12));
+    const lowest = e => tr(`${Math.min(...e).toFixed(2)} at block ${e.indexOf(Math.min(...e))}`, `블록 ${e.indexOf(Math.min(...e))}에서 ${Math.min(...e).toFixed(2)}`);
+    const rows = [
+      [tr('vocabulary · length', 'vocab · 길이'), '30,522 · 128', '50,257 · 1024'],
+      [tr('commit (agreement jump)', 'commit (일치율 점프)'), tr('block 7 (.41 → .60)', '블록 7 (.41 → .60)'), tr('block 5 (.39 → .62)', '블록 5 (.39 → .62)')],
+      [tr('lowest readout entropy', '가장 낮은 readout 엔트로피'), lowest(a.ent), lowest(b.ent)],
+      [tr('effective τ by block 6', '블록 6까지의 실효 τ'), a.eff[6].toFixed(3), b.eff[6].toFixed(3)],
+      [tr('transition block (irreplaceable)', '전환 블록 (대체 불가)'), '6', '4'],
+      [tr('interchangeable groups', '서로 교체 가능한 묶음'), '2–5, 7–10', '1–3, 5–10'],
+      [tr('τ_t = 0.1: best block vs output', 'τ_t = 0.1: 가장 좋은 블록 vs 출력'), `${mn(a.nll_t01).toFixed(2)} vs ${a.nll_t01[12].toFixed(2)}`, `${mn(b.nll_t01).toFixed(2)} vs ${b.nll_t01[12].toFixed(2)}`],
+      [tr('noise seeding (β = 2)', 'noise seeding (β = 2)'), a.seed2.toFixed(2), b.seed2.toFixed(2)],
+      [tr('FMLM vs FLM endpoint agreement', 'FMLM vs FLM 끝점 일치율'), a.st_agree.toFixed(2), b.st_agree.toFixed(2)],
+      [tr('one-step Gen. PPL (FLM 128 steps)', 'one-step Gen. PPL (FLM 128 step)'), `${a.gen_ppl} (${a.gen_ppl_teacher})`, `${b.gen_ppl} (${b.gen_ppl_teacher})`]];
+    document.getElementById('t_owt').innerHTML = `<tr><th>${tr('property', '속성')}</th><th>LM1B</th><th>OWT</th></tr>` +
+      rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+  }
+
+  // ---- layer reuse ----
+  const RU = D.reuse;
+  function heatmap(id, M, title) {
+    const host = document.getElementById(id); host.innerHTML = '';
+    const n = M.length, W = 460, m = {l: 44, t: 26, r: 8, b: 34}, cs = (W - m.l - m.r) / n, H = m.t + m.b + cs * n;
+    const svg = el('svg', {viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': title}, host);
+    const t = el('text', {x: m.l, y: 13, class: 'ttl'}, svg); t.textContent = title;
+    M.forEach((row, i) => row.forEach((v, j) => {
+      const r = el('rect', {x: m.l + j * cs + 1, y: m.t + i * cs + 1, width: cs - 2, height: cs - 2, rx: 2,
+        style: `fill:var(--s1);fill-opacity:${Math.max(0.04, v).toFixed(2)}`}, svg);
+      const tt = el('title', {}, r); tt.textContent = tr(`slot ${i} ← block ${j}: agreement ${v.toFixed(2)}`, `자리 ${i} ← 블록 ${j}: 일치율 ${v.toFixed(2)}`);
+      if (cs > 22) { const tx = el('text', {x: m.l + j * cs + cs / 2, y: m.t + i * cs + cs / 2 + 3, 'text-anchor': 'middle',
+        style: `fill:${v > 0.55 ? 'var(--panel)' : 'var(--fg2)'};font-size:${n > 10 ? 8.5 : 10}px`}, svg); tx.textContent = v >= 0.995 ? '1' : v.toFixed(2).replace(/^0/, ''); }
+    }));
+    range(n).forEach(k => {
+      const a = el('text', {x: m.l + k * cs + cs / 2, y: H - m.b + 13, 'text-anchor': 'middle'}, svg); a.textContent = k;
+      const b = el('text', {x: m.l - 6, y: m.t + k * cs + cs / 2 + 3, 'text-anchor': 'end'}, svg); b.textContent = k;
+    });
+    const xl = el('text', {x: m.l + (W - m.l - m.r) / 2, y: H - 4, 'text-anchor': 'middle'}, svg); xl.textContent = tr('block inserted (j)', '넣은 블록 (j)');
+  }
+  const swapCaps = lang === 'ko' ? {
+    lm1b: '<b>LM1B.</b> 블록 2–5는 거의 서로 바꿀 수 있습니다(0.83–0.89). 바로 blur plateau 구간입니다. 자리 6에는 어떤 블록도 들어갈 수 없고(일치율 ≈ 0.5), 블록 6은 다른 모든 자리를 망가뜨립니다. Commit 직전의 전환 블록입니다. 블록 7–10은 부분적으로 바꿀 수 있고, 블록 0과 11은 고유합니다.',
+    owt: '<b>OWT.</b> 뒤쪽 블록 5–10이 강하게 서로 바꿀 수 있습니다(0.76–0.88). 앞쪽 묶음 1–3은 더 약합니다(0.57–0.73). 블록 5의 commit 직전인 블록 4가 전환 블록입니다. Update norm이 가장 크고, 다른 블록으로는 그 자리를 잘 채우지 못합니다. 이로부터 0 | 1–3 | 4 | 5–10 | 11 묶음, 즉 블록 12개 대신 5개를 쓰는 구조가 나옵니다. 이 구조로 학습한 결과는 아래 표에 있습니다.',
+    cities: '<b>Toy cities.</b> 블록 0과 7을 빼면 모든 블록이 서로를 대신할 수 있습니다(일치율 ≥ 0.94). 그래서 여기서는 공유 블록 하나로 충분합니다.'} : {
+    lm1b: '<b>LM1B.</b> Blocks 2–5 are nearly interchangeable (0.83–0.89): that is the blur plateau. Nothing can take slot 6 (agreement ≈ 0.5), and block 6 breaks every other slot. It is the transition block right before the commit. Blocks 7–10 are partly interchangeable; blocks 0 and 11 are unique.',
+    owt: '<b>OWT.</b> The late blocks 5–10 are strongly interchangeable (0.76–0.88). The early group 1–3 is weaker (0.57–0.73). Block 4, right before the block-5 commit, is the transition block: it has the largest update norm, and no other block fills its slot well. This suggests the groups 0 | 1–3 | 4 | 5–10 | 11, i.e. 5 blocks instead of 12; the trained result is in the table below.',
+    cities: '<b>Toy cities.</b> Every block except 0 and 7 can replace every other (agreement ≥ 0.94). That is why a single shared block suffices here.'};
+  function renderSwap(v) { heatmap('c_swap', RU.swap[v], `${v === 'cities' ? 'toy cities' : v.toUpperCase()}: ${tr('agreement after putting block j into slot i', '블록 j를 자리 i에 넣었을 때 일치율')}`); document.getElementById('swapCap').innerHTML = swapCaps[v]; }
+  renderSwap('lm1b');
+  seg('swapSeg', 'v', renderSwap);
+  const rcol = {tied_struct: 'var(--s3)', untied: 'var(--s7)', tied2_alt: 'var(--s1)', tied2_split: 'var(--s4)', tied1: 'var(--s2)', tied1_noclock: 'var(--s5)'};
+  const rlab = lang === 'ko' ? {tied_struct: 'tied_struct (블록 6개 × 12회)', untied: '대조군: 공유 없는 블록 6개 × 1회', tied2_alt: 'tied2_alt (블록 2개 번갈아)', tied2_split: 'tied2_split (블록 2개, 앞/뒤)', tied1: 'tied1 (블록 1개 + clock)', tied1_noclock: 'tied1, clock 없음'}
+    : {tied_struct: 'tied_struct (6 blocks × 12 applications)', untied: 'control: 6 untied blocks, applied once', tied2_alt: 'tied2_alt (2 blocks, alternating)', tied2_split: 'tied2_split (2 blocks, early/late)', tied1: 'tied1 (1 block + clock)', tied1_noclock: 'tied1, no clock'};
+  const order = ['tied_struct', 'untied', 'tied2_alt', 'tied2_split', 'tied1', 'tied1_noclock'];
+  const runs = order.map(k => RU.lm1b.find(r => r.name === k && (r.ds || 'lm1b') === 'lm1b')).filter(Boolean);
+  const owtRun = RU.lm1b.find(r => r.ds === 'owt');
+  lineChart('c_reuse_curve', {title: tr('LM1B: agreement with teacher during distillation', 'LM1B: distillation 중 teacher와의 일치율'), xmin: 0, xmax: 150000, ymin: 0, ymax: 1.05,
+    yticks: [0, .25, .5, .75, 1], xticks: [0, 50000, 100000, 150000], xfmt: v => (v / 1000) + 'k', xlabel: tr('training step', '학습 step'), tipx: v => 'step ' + (v / 1000) + 'k',
+    series: runs.map(r => ({name: rlab[r.name], x: r.curve.map(c => c[0]), y: r.curve.map(c => c[1]), color: rcol[r.name], marker: true, dash: (r.name.endsWith('noclock') || r.name === 'untied') ? '5 4' : ''}))});
+  document.getElementById('lg_reuse').innerHTML = runs.map(r => `<span><i class="sw${(r.name.endsWith('noclock') || r.name === 'untied') ? ' dash' : ''}" style="border-color:${rcol[r.name]}"></i>${rlab[r.name]}</span>`).join('');
+  const T0 = runs[0];
+  // full-protocol reuse table and curves
+  const RC = D.reuseCurve || [], RT = D.reuseTeacher;
+  const rcGet = n => RC.find(r => r.name === n);
+  const rcName = {
+    lm1b_tied_struct_K12: ['tied_struct: B0 B1 S S S S B6 T T T T B11', 'tied_struct: B0 B1 S S S S B6 T T T T B11'],
+    lm1b_tied_struct_K12_g4: ['B0 S(1–5) B6 T(7–11)', 'B0 S(1–5) B6 T(7–11)'],
+    lm1b_tied_struct_K12_g3: ['S(0–5) B6 T(7–11)', 'S(0–5) B6 T(7–11)'],
+    lm1b_tied_struct_K12_g2b6: ['S(0–5) B6 S(7–11)', 'S(0–5) B6 S(7–11)'],
+    lm1b_tied2_alt_K12: ['tied2_alt: A B A B … (alternating)', 'tied2_alt: A B A B … (번갈아)'],
+    lm1b_tied2_split_K12: ['tied2_split: A×7 B×5', 'tied2_split: A×7 B×5'],
+    lm1b_tied1_K12: ['tied1: A×12 + clock', 'tied1: A×12 + clock'],
+    lm1b_tied1_noclock_K12: ['tied1: A×12, no clock', 'tied1: A×12, clock 없음'],
+  };
+  const rcLabel = r => rcName[r.name] ? tr(...rcName[r.name]) : tr(`untied: ${r.n_blocks} distinct block${r.n_blocks > 1 ? 's' : ''}, applied once`, `공유 없음: 서로 다른 블록 ${r.n_blocks}개, 한 번씩`);
+  const tiedLine = ['lm1b_tied1_K12', 'lm1b_tied_struct_K12_g2b6', 'lm1b_tied_struct_K12_g3', 'lm1b_tied_struct_K12_g4', 'lm1b_tied_struct_K12'].map(rcGet).filter(Boolean);
+  const untiedLine = RC.filter(r => r.variant === 'untied').sort((a, b) => a.params_m - b.params_m);
+  const rcExtra = ['lm1b_tied2_alt_K12', 'lm1b_tied2_split_K12', 'lm1b_tied1_noclock_K12'].map(rcGet).filter(Boolean);
+  const pAxis = {xmin: 0, xmax: 50, xticks: [0, 10, 20, 30, 40, 50], xlabel: tr('block parameters (M)', '블록 파라미터 (M)'), tipx: v => v.toFixed(1) + 'M'};
+  if (tiedLine.length) {
+    lineChart('c_reuse_params', Object.assign({title: tr('agreement with teacher vs. block parameters', 'block 파라미터에 따른 teacher 일치율'), ymin: 0.4, ymax: 0.9, yticks: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+      series: [{name: tr('shared + clock', '공유 + clock'), x: tiedLine.map(r => r.params_m), y: tiedLine.map(r => r.agree[0]), color: 'var(--s3)', marker: true},
+               {name: tr('untied', '공유 없음'), x: untiedLine.map(r => r.params_m), y: untiedLine.map(r => r.agree[0]), color: 'var(--s7)', dash: '5 4', marker: true}]
+        .concat(rcExtra.map(r => ({name: rcLabel(r), x: [r.params_m], y: [r.agree[0]], color: 'var(--sg)', marker: true})))}, pAxis));
+    lineChart('c_reuse_ppl', Object.assign({title: tr('one-step Gen. PPL vs. block parameters', 'block 파라미터에 따른 one-step Gen. PPL'), ymin: 80, ymax: 180, yticks: [80, 100, 120, 140, 160, 180],
+      series: [{name: tr('shared + clock', '공유 + clock'), x: tiedLine.map(r => r.params_m), y: tiedLine.map(r => r.gen_ppl[0]), color: 'var(--s3)', marker: true},
+               {name: tr('untied', '공유 없음'), x: untiedLine.map(r => r.params_m), y: untiedLine.map(r => r.gen_ppl[0]), color: 'var(--s7)', dash: '5 4', marker: true},
+               {name: 'teacher', x: [0, 50], y: [RT.gen_ppl[0], RT.gen_ppl[0]], color: 'var(--sg)', dash: '2 3', width: 1.5}]}, pAxis));
+  }
+  const pm = v => `${v[0].toFixed(v[0] > 10 ? 1 : 3)}<span style="color:var(--muted)"> ± ${v[1].toFixed(v[0] > 10 ? 1 : 3)}</span>`;
+  const rcRows = tiedLine.slice().reverse().concat(rcExtra, untiedLine.slice().reverse());
+  document.getElementById('t_reuse').innerHTML =
+    (lang === 'ko' ? '<tr><th>구조</th><th>블록 수</th><th>적용 횟수</th><th>블록 파라미터</th><th>teacher 일치율</th><th>KL</th><th>Gen. PPL</th><th>엔트로피</th></tr>'
+                   : '<tr><th>structure</th><th>blocks</th><th>applications</th><th>block params</th><th>agree w/ teacher</th><th>KL</th><th>Gen. PPL</th><th>entropy</th></tr>') +
+    (RT ? `<tr><td>${tr('teacher FMLM', 'teacher FMLM')}</td><td>12</td><td>12</td><td>92.1M</td><td>1</td><td>0</td><td>${pm(RT.gen_ppl)}</td><td>${pm(RT.entropy)}</td></tr>` : '') +
+    rcRows.map(r => `<tr${r === untiedLine[untiedLine.length - 1] ? ' class="sep"' : ''}><td>${rcLabel(r)}</td><td>${r.n_blocks}</td><td>${r.K}</td><td>${r.params_m}M</td>` +
+      `<td${r.name === 'lm1b_tied_struct_K12_g2b6' || r.name === 'lm1b_tied_struct_K12' ? ' class="hi"' : ''}>${pm(r.agree)}</td><td>${pm(r.kl)}</td><td>${pm(r.gen_ppl)}</td><td>${pm(r.entropy)}</td></tr>`).join('') +
+    (D.reuseOwt ? (() => { const o = D.reuseOwt, t = o.teacher, st = o.owt_tied_struct_K12;
+      return `<tr class="sep"><td>${tr('OWT teacher FMLM', 'OWT teacher FMLM')}</td><td>12</td><td>12</td><td>92.1M</td><td>1</td><td>0</td><td>${pm(t.gen_ppl)}</td><td>${pm(t.entropy)}</td></tr>` +
+        `<tr><td>OWT: B0 S(1–3) B4 T(5–10) B11</td><td>5</td><td>12</td><td>38.5M</td><td class="hi">${pm(st.agree)}</td><td>${pm(st.kl)}</td><td>${pm(st.gen_ppl)}</td><td>${pm(st.entropy)}</td></tr>`; })() : '');
+  document.getElementById('t_reuse_toy').innerHTML = (lang === 'ko' ? '<tr><th>변형</th><th>파라미터</th><th>일치율</th><th>유효 문장</th></tr>' : '<tr><th>variant</th><th>params</th><th>agree</th><th>valid</th></tr>') +
+    RU.toy.map(r => `<tr><td>${r.name.replace('_K8', '').replace('_K4', ', K = 4')}</td><td>${r.params_m}M</td><td>${r.agree.toFixed(3)}</td><td>${r.valid.toFixed(3)}</td></tr>`).join('');
+
+
+  // ---- per-token commit (direction A) ----
+  const CM = D.commit;
+  if (CM) {
+    const cA = CM.lm1b, cO = CM.owt;
+    lineChart('c_commit_hist', {title: tr('fraction of tokens committing at each block', '블록별로 확정되는 토큰 비율'), xmin: 0, xmax: 12, ymin: 0, ymax: 0.5,
+      yticks: [0, .1, .2, .3, .4, .5], xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('commit depth (block)', 'commit depth (블록)'), tipx: blk,
+      series: [{name: tr('LM1B, all', 'LM1B, 전체'), x: depth, y: cA.hist, color: 'var(--s2)', marker: true},
+               {name: tr('OWT, all', 'OWT, 전체'), x: depth, y: cO.hist, color: 'var(--s1)', marker: true},
+               {name: tr('LM1B, seeded', 'LM1B, seeding'), x: depth, y: cA.hist_seeded, color: 'var(--s2)', dash: '5 4'},
+               {name: tr('OWT, seeded', 'OWT, seeding'), x: depth, y: cO.hist_seeded, color: 'var(--s1)', dash: '5 4'}]});
+    const dec = range(10).map(k => k + 1);
+    lineChart('c_commit_conf', {title: tr('mean commit depth by confidence decile', '확신도 10분위별 평균 commit depth'), xmin: 1, xmax: 10, ymin: 0, ymax: 12,
+      yticks: [0, 2, 4, 6, 8, 10, 12], xticks: [1, 2, 4, 6, 8, 10], xlabel: tr('final-probability decile (1 = least confident)', '최종 확률 10분위 (1 = 가장 낮음)'),
+      tipx: v => tr('decile ', '10분위 ') + Math.round(v),
+      series: [{name: 'LM1B', x: dec, y: cA.by_conf_decile, color: 'var(--s2)', marker: true},
+               {name: 'OWT', x: dec, y: cO.by_conf_decile, color: 'var(--s1)', marker: true}]});
+    const sw3 = c => (c.switches[3] + c.switches[4] + c.switches[5]);
+    const f2 = v => v.toFixed(2), pc = v => (100 * v).toFixed(0) + '%';
+    const cmRows = [
+      [tr('Spearman: final confidence (higher → earlier)', 'Spearman: 최종 확신도 (높을수록 일찍)'), f2(cA.spearman.final_conf), f2(cO.spearman.final_conf)],
+      [tr('Spearman: token frequency (more frequent → earlier)', 'Spearman: 토큰 빈도 (흔할수록 일찍)'), f2(cA.spearman.marginal_prob), f2(cO.spearman.marginal_prob)],
+      [tr('Spearman: position in the sentence', 'Spearman: 문장 내 위치'), f2(cA.spearman.position), f2(cO.spearman.position)],
+      [tr("Spearman: teacher's lock step (same tokens)", 'Spearman: teacher의 확정 step (같은 토큰)'), f2(cA.spearman.teacher_lock_step), f2(cO.spearman.teacher_lock_step)],
+      [tr('mean commit depth: noise-seeded vs. other tokens', '평균 commit depth: noise seeding 토큰 vs. 나머지'), `${cA.mean_seeded} vs ${cA.mean_rest}`, `${cO.mean_seeded} vs ${cO.mean_rest}`],
+      [tr('committed at block 0', '블록 0에서 확정'), pc(cA.hist[0]), pc(cO.hist[0])],
+      [tr('committed at the transition block', '전환 블록에서 확정'), `${pc(cA.hist[7])} (${tr('block', '블록')} 7)`, `${pc(cO.hist[5])} (${tr('block', '블록')} 5)`],
+      [tr('right before commit: other candidate / seeded token / marginal filler', '확정 직전: 다른 후보 / seeding 토큰 / 주변분포 filler'),
+        `${pc(cA.pre.other)} / ${pc(cA.pre.noise_seeded)} / ${pc(cA.pre.marginal_filler)}`, `${pc(cO.pre.other)} / ${pc(cO.pre.noise_seeded)} / ${pc(cO.pre.marginal_filler)}`],
+      [tr('argmax switches across depth: 0 / 1 / 2 / 3+', 'depth에 걸친 argmax 변경 횟수: 0 / 1 / 2 / 3+'),
+        `${pc(cA.switches[0])} / ${pc(cA.switches[1])} / ${pc(cA.switches[2])} / ${pc(sw3(cA))}`, `${pc(cO.switches[0])} / ${pc(cO.switches[1])} / ${pc(cO.switches[2])} / ${pc(sw3(cO))}`],
+      [tr('commit-depth std: within a sentence / overall', 'commit depth 표준편차: 문장 내 / 전체'), `${cA.std_within} / ${cA.std_all}`, `${cO.std_within} / ${cO.std_all}`]];
+    document.getElementById('t_commit').innerHTML = `<tr><th>${tr('measure', '지표')}</th><th>LM1B</th><th>OWT</th></tr>` +
+      cmRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+  }
+
+  // ---- toy sweep (direction B) ----
+  const SB = D.sweepB;
+  if (SB) {
+    const swLab = {dep_c1: tr('c = 1 (independent)', 'c = 1 (독립)'), dep_c2: 'c = 2', dep_c4: 'c = 4', dep_c8: tr('c = 8 (joint), m = 4', 'c = 8 (결합), m = 4'),
+      modes_m2: tr('joint, m = 2', '결합, m = 2'), modes_m16: tr('joint, m = 16', '결합, m = 16'), modes_m64: tr('joint, m = 64', '결합, m = 64'), modes_m256: tr('joint, m = 256', '결합, m = 256')};
+    const depKeys = ['dep_c1', 'dep_c2', 'dep_c4', 'dep_c8'], depCol = ['var(--q1)', 'var(--q2)', 'var(--q3)', 'var(--q4)'];
+    const d9 = range(9);
+    lineChart('c_sweep_dep', {title: tr('matched flow time τ* per block (8 blocks, 3 seeds)', '블록별 맞춰진 flow 시간 τ* (블록 8개, seed 3개)'), xmin: 0, xmax: 8, ymin: 0, ymax: 1.05,
+      yticks: [0, .25, .5, .75, 1], xticks: [0, 2, 4, 6, 8], xlabel: tr('block', '블록'), tipx: blk,
+      series: depKeys.map((k, i) => ({name: swLab[k], x: d9, y: SB.b8[k].tau_star, color: depCol[i], marker: true}))});
+    document.getElementById('lg_sweep_dep').innerHTML = depKeys.map((k, i) => `<span><i class="sw" style="border-color:${depCol[i]}"></i>${swLab[k]}</span>`).join('');
+    const b16 = [['dep_c1', 'var(--s3)', ''], ['dep_c8', 'var(--s2)', ''], ['modes_m16', 'var(--s1)', ''], ['modes_m64', 'var(--sg)', '5 4']].filter(x => SB.b16[x[0]]);
+    const d17 = range(17);
+    lineChart('c_sweep_b16', {title: tr('τ* per block with 16 blocks (seed 0)', '블록 16개일 때 블록별 τ* (seed 0)'), xmin: 0, xmax: 16, ymin: 0, ymax: 1.05,
+      yticks: [0, .25, .5, .75, 1], xticks: [0, 4, 8, 12, 16], xlabel: tr('block', '블록'), tipx: blk,
+      series: b16.map(([k, c, d]) => ({name: swLab[k], x: d17, y: SB.b16[k].tau_star, color: c, dash: d, marker: true}))});
+    document.getElementById('lg_sweep_b16').innerHTML = b16.map(([k, c, d]) => `<span><i class="sw${d ? ' dash' : ''}" style="border-color:${c}"></i>${swLab[k]}${k === 'modes_m64' ? tr(' (under-fit)', ' (학습 부족)') : ''}</span>`).join('');
+    const ms = v => `${v[0].toFixed(2)}<span style="color:var(--muted)"> ± ${v[1].toFixed(2)}</span>`;
+    document.getElementById('t_sweep').innerHTML =
+      (lang === 'ko' ? '<tr><th>설정</th><th>문장 수 M</th><th>끝점 일치율</th><th>블록 0의 τ*</th><th>τ* 최대 점프</th><th>문장 내 퍼짐</th></tr>'
+                     : '<tr><th>configuration</th><th>sentences M</th><th>endpoint agreement</th><th>τ* at block 0</th><th>largest τ* jump</th><th>within-sentence spread</th></tr>') +
+      Object.keys(swLab).filter(k => SB.b8[k]).map(k => { const r = SB.b8[k], bad = r.endpoint < 0.7;
+        return `<tr${k === 'modes_m2' ? ' class="sep"' : ''}><td>${swLab[k]}${bad ? tr(' (under-fit)', ' (학습 부족)') : ''}</td><td>${r.M.toLocaleString()}</td><td>${r.endpoint.toFixed(2)}</td><td>${ms(r.tau0)}</td><td>${ms(r.jump)}</td><td>${ms(r.within)}</td></tr>`; }).join('');
+  }
+
+
+  // ---- direction C: trajectory supervision ----
+  const TSUP = D.trajsup;
+  if (TSUP) {
+    const tsToy = TSUP.toy, d8 = range(8).map(k => k + 1);
+    const tsCfg = [['dep_c1', 'var(--s3)', tr('c = 1 (independent)', 'c = 1 (독립)')], ['dep_c4', 'var(--s1)', 'c = 4'], ['dep_c8', 'var(--s2)', tr('c = 8 (joint)', 'c = 8 (결합)')]].filter(x => tsToy[x[0]]);
+    lineChart('c_ts_toy', {title: tr('toy: valid sentences when sampling from block i', 'toy: 블록 i에서 샘플링할 때 유효 문장 비율'), xmin: 1, xmax: 8, ymin: 0, ymax: 1.05,
+      yticks: [0, .25, .5, .75, 1], xticks: [1, 2, 4, 6, 8], xlabel: tr('block', '블록'), tipx: blk,
+      series: tsCfg.flatMap(([k, c, lab]) => [
+        {name: lab + ' λ=0.1', x: d8, y: tsToy[k]['0.1'].valid, color: c, marker: true},
+        {name: lab + ' λ=0', x: d8, y: tsToy[k]['0'].valid, color: c, dash: '5 4'}])});
+    document.getElementById('lg_ts_toy').innerHTML = tsCfg.map(([k, c, lab]) => `<span><i class="sw" style="border-color:${c}"></i>${lab}</span>`).join('') +
+      `<span>${tr('solid: λ = 0.1 · dashed: λ = 0', '실선: λ = 0.1 · 점선: λ = 0')}</span>`;
+    const tsLm = TSUP.lm1b, d13 = range(13);
+    const tsRuns = [['lam0_mu1', 'var(--sg)', '5 4', tr('control (λ = 0)', '대조군 (λ = 0)')], ['lam0.1_mu1', 'var(--q3)', '', 'λ = 0.1'],
+                    ['lam1_mu1', 'var(--s3)', '', 'λ = 1'], ['lam1_mu1_fin8', 'var(--s2)', '', tr('λ = 1, τ = 1 at block 8', 'λ = 1, 블록 8에서 τ = 1')]].filter(x => tsLm[x[0]]);
+    lineChart('c_ts_lm', {title: tr('LM1B: Gen. PPL when sampling from block i', 'LM1B: 블록 i에서 샘플링할 때 Gen. PPL'), xmin: 7, xmax: 12, ymin: 80, ymax: 320,
+      yticks: [100, 150, 200, 250, 300], xticks: [7, 8, 9, 10, 11, 12], xlabel: tr('block', '블록'), tipx: blk,
+      series: tsRuns.map(([k, c, d, lab]) => ({name: lab, x: d13.slice(7), y: tsLm[k].ee_ppl.slice(7), color: c, dash: d, marker: true}))});
+    document.getElementById('lg_ts_lm').innerHTML = tsRuns.map(([k, c, d, lab]) => `<span><i class="sw${d ? ' dash' : ''}" style="border-color:${c}"></i>${lab}</span>`).join('');
+    const avg = v => v.slice(0, 9).reduce((a, b) => a + b, 0) / 9;
+    const tsAll = tsRuns.concat(tsLm.lam1_mu1_fin10 ? [['lam1_mu1_fin10', '', '', tr('λ = 1, τ = 1 at block 10', 'λ = 1, 블록 10에서 τ = 1')]] : []);
+    const pmT = v => `${v[0].toFixed(v[0] > 10 ? 1 : 3)}<span style="color:var(--muted)"> ± ${v[1].toFixed(v[0] > 10 ? 1 : 3)}</span>`;
+    document.getElementById('t_ts').innerHTML =
+      (lang === 'ko' ? '<tr><th>설정</th><th>끝점 Gen. PPL</th><th>엔트로피</th><th>원래 모델과 일치율</th><th>블록 1–9 스케줄 KL (평균)</th><th>블록 8 / 10 / 11 Gen. PPL</th></tr>'
+                     : '<tr><th>setting</th><th>endpoint Gen. PPL</th><th>entropy</th><th>agree w/ original</th><th>schedule KL, blocks 1–9 (mean)</th><th>Gen. PPL at block 8 / 10 / 11</th></tr>') +
+      tsAll.map(([k, , , lab]) => { const r = tsLm[k];
+        return `<tr><td>${lab}</td><td>${pmT(r.gen_ppl)}</td><td>${pmT(r.entropy)}</td><td>${r.agree_original.toFixed(3)}</td><td>${avg(r.kl_sched).toFixed(2)}</td><td>${r.ee_ppl[8].toFixed(0)} / ${r.ee_ppl[10].toFixed(0)} / ${r.ee_ppl[11].toFixed(0)}</td></tr>`; }).join('');
+  }
+
+
+  // ---- token dependency, token classes, multi-step commit ----
+  const DEP = D.dep;
+  if (DEP) {
+    const clsKeys = ['punctuation / special', 'function word', 'content word', 'word piece', 'number'];
+    const clsLab = {'punctuation / special': tr('punctuation / special', '구두점 / 특수'), 'function word': tr('function word', '기능어'),
+      'content word': tr('content word', '내용어'), 'word piece': tr('word piece', '단어 조각'), 'number': tr('number', '숫자')};
+    const clsCol = {'punctuation / special': 'var(--sg)', 'function word': 'var(--s1)', 'content word': 'var(--s2)', 'word piece': 'var(--s5)', 'number': 'var(--s4)'};
+    function renderDep(ds) {
+      const g = DEP[ds];
+      lineChart('c_dep_cls', {title: tr(`${ds.toUpperCase()}: commit depth by token class`, `${ds.toUpperCase()}: 토큰 종류별 commit depth`), xmin: 0, xmax: 12, ymin: 0, ymax: 0.6,
+        yticks: [0, .1, .2, .3, .4, .5, .6], xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('commit depth (block)', 'commit depth (블록)'), tipx: blk,
+        series: clsKeys.filter(k => g.classes[k]).map(k => ({name: clsLab[k], x: depth, y: g.classes[k].hist, color: clsCol[k], marker: k !== 'number', dash: k === 'number' || k === 'word piece' ? '5 4' : ''}))});
+      document.getElementById('lg_dep_cls').innerHTML = clsKeys.filter(k => g.classes[k]).map(k =>
+        `<span><i class="sw${k === 'number' || k === 'word piece' ? ' dash' : ''}" style="border-color:${clsCol[k]}"></i>${clsLab[k]} (${(100 * g.classes[k].share).toFixed(0)}%, ${tr('mean', '평균')} ${g.classes[k].mean.toFixed(1)})</span>`).join('');
+    }
+    renderDep('lm1b');
+    seg('depSeg', 'v', renderDep);
+    const a = DEP.lm1b, o = DEP.owt, f2 = v => v.toFixed(2);
+    const dirRow = (lab, i) => [lab, `${f2(a.direction[i][3])}×`, `${f2(o.direction[i][3])}×`];
+    const depRows = [
+      [tr('pairs at equal distance: dependency vs. commit at similar depth (rank corr.)', '같은 거리의 쌍: 의존도 vs. 비슷한 깊이에서 확정 (순위 상관)'),
+        `${Math.min(...Object.values(a.pair_spearman)).toFixed(2)} … ${Math.max(...Object.values(a.pair_spearman)).toFixed(2)}`,
+        `${Math.min(...Object.values(o.pair_spearman)).toFixed(2)} … ${Math.max(...Object.values(o.pair_spearman)).toFixed(2)}`],
+      dirRow(tr('earlier → later vs. later → earlier influence, distance 1', '먼저 → 나중 vs. 나중 → 먼저 영향, 거리 1'), 0),
+      dirRow(tr('… distance 2–3', '… 거리 2–3'), 1),
+      dirRow(tr('… distance 4–16', '… 거리 4–16'), 2),
+      [tr('commit depth vs. dependence on the other positions (rank corr.)', 'commit depth vs. 다른 위치에 대한 의존 (순위 상관)'), f2(a.ctx_spearman), f2(o.ctx_spearman)],
+      [tr('commit earlier when the own noise matters more (rank corr.)', '자기 noise의 영향이 클수록 일찍 확정 (순위 상관)'), f2(a.self_spearman), f2(o.self_spearman)]];
+    document.getElementById('t_dep').innerHTML = `<tr><th>${tr('measure', '지표')}</th><th>LM1B</th><th>OWT</th></tr>` +
+      depRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+    const tb = ds => DEP[ds].multistep, trans = {lm1b: 7, owt: 5};
+    document.getElementById('t_dep_ms').innerHTML =
+      `<tr><th>${tr('4-step sampling', '4-step 샘플링')}</th>` + tb('lm1b').map(r => `<th>step ${r.step + 1}</th>`).join('') + '</tr>' +
+      ['lm1b', 'owt'].map(ds => `<tr><td>${ds.toUpperCase()}: ${tr('commit order vs. confidence (rank corr.)', 'commit 순서 vs. 확신도 (순위 상관)')}</td>` + tb(ds).map(r => `<td>${f2(r.spearman)}</td>`).join('') + '</tr>' +
+        `<tr><td>${ds.toUpperCase()}: ${tr('committed at block 0', '블록 0에서 확정')}</td>` + tb(ds).map(r => `<td>${(100 * r.block0).toFixed(0)}%</td>`).join('') + '</tr>' +
+        `<tr><td>${ds.toUpperCase()}: ${tr('committed at the transition block', '전환 블록에서 확정')} (${tr('block', '블록')} ${trans[ds]})</td>` + tb(ds).map(r => `<td>${(100 * r.hist[trans[ds]]).toFixed(0)}%</td>`).join('') + '</tr>').join('');
+  }
+
+  // ---- endpoint sweep ----
+  const sweepKeys = ['0.10', '0.30', '0.50', '0.70', '1.00'];
+  const sweepCol = ['var(--q1)', 'var(--q2)', 'var(--q3)', 'var(--q4)', 'var(--s2)'];
+  const lg = sweepKeys.map((k, i) => `<span><i class="sw" style="border-color:${sweepCol[i]}"></i>τ_t = ${k}</span>`).join('');
+  document.getElementById('lg_sweep').innerHTML = lg;
+  document.getElementById('lg_sweep2').innerHTML = lg;
+  lineChart('c_sweep', {title: tr('entropy of δ^i_{0,t}', 'δ^i_{0,t} 엔트로피'), xmin: 0, xmax: 12, ymin: 0, ymax: 5.8, yticks: [0, 1, 2, 3, 4, 5],
+    xticks: [0, 2, 4, 6, 8, 10, 12], xlabel: tr('block', '블록'), tipx: blk,
+    series: sweepKeys.map((k, i) => ({name: 'τ_t ' + k, x: depth, y: D.sweep[k].ent, color: sweepCol[i], marker: true}))});
+  lineChart('c_sweepnll', {title: tr('−log δ^i[clean tokens]', '−log δ^i[clean 토큰]'), xmin: 4, xmax: 12, ymin: 0, ymax: 4.2, yticks: [0, 1, 2, 3, 4],
+    xticks: [4, 6, 8, 10, 12], xlabel: tr('block (from 4)', '블록 (4부터)'), tipx: blk,
+    series: sweepKeys.map((k, i) => ({name: 'τ_t ' + k, x: depth.slice(4), y: D.sweep[k].nll.slice(4), color: sweepCol[i], marker: true}))});
+
+  // ---- rollouts ----
+  function renderRoll(n) {
+    const steps = D.rollout[n];
+    const xs = [], ent = [], nll = [], segs = [];
+    steps.forEach((s, j) => {
+      const idx = [];
+      s.ent.forEach((v, i) => { idx.push(xs.length); xs.push(j + i / 12); ent.push(v); nll.push(s.nll[i]); });
+      segs.push(idx);
+    });
+    lineChart('c_roll', {title: tr(`${n}-step FMLM: each step decoded across its 12 blocks`, `${n}-step FMLM: 각 step을 12개 블록에 걸쳐 디코딩`), h: 240, xmin: 0, xmax: +n, ymin: 0, ymax: 7.2,
+      yticks: [0, 2, 4, 6], xticks: range(+n + 1), vlines: range(+n - 1).map(j => j + 1),
+      xfmt: v => 'step ' + v, xlabel: tr('network evaluation + block / 12', '네트워크 평가 + 블록 / 12'),
+      tipx: v => { const j = Math.min(+n - 1, Math.floor(v + 1e-6)); const b = Math.round((v - j) * 12); const s = steps[j];
+        return `step ${j + 1} (τ ${s.tau_s.toFixed(2)}→${s.tau_t.toFixed(2)}), ${tr('block', '블록')} ${b}`; },
+      series: [
+        {name: tr('entropy', '엔트로피'), x: xs, y: ent, color: 'var(--s1)', segments: segs},
+        {name: '−log δ[final]', x: xs, y: nll, color: 'var(--s2)', dash: '5 4', segments: segs}]});
+  }
+  renderRoll('4');
+  seg('rollSeg', 'n', renderRoll);
+
+  // ---- noise seeding ----
+  const S = D.seed;
+  const bx = S.betas.map(b => Math.log10(b + 0.01));
+  lineChart('c_seed', {title: tr('context-free noise seeding: token agreement', '문맥 없는 noise seeding: 토큰 일치율'), ymin: 0, ymax: 0.45, yticks: [0, .1, .2, .3, .4],
+    xmin: Math.min(...bx), xmax: Math.max(...bx), xticks: [0, 0.1, 0.5, 2, 5].map(b => Math.log10(b + 0.01)),
+    xfmt: v => 'β ' + (Math.pow(10, v) - 0.01).toFixed(1).replace(/\.0$/, ''), xlabel: tr('noise weight β (log scale)', 'noise 가중치 β (로그 스케일)'),
+    tipx: v => 'β = ' + (Math.pow(10, v) - 0.01).toFixed(2),
+    series: [
+      {name: 'vs FMLM', x: bx, y: S.student, color: 'var(--s1)', marker: true},
+      {name: 'vs FLM', x: bx, y: S.teacher, color: 'var(--s2)', marker: true},
+      {name: tr('block-0 readout', '블록 0 readout'), x: [bx[0], bx[bx.length - 1]], y: [S.l0, S.l0], color: 'var(--sg)', dash: '2 3', width: 1.5}]});
+
+  // ---- toy ----
+  const MODE = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)', 'var(--s6)', 'var(--s7)', 'var(--s8)'];
+  const TS = {ds: 'cities', teacher: 'exact', layer: 0, tau: '0.75'};
+  function toyFrame(svg, ds, S, sc) {
+    if (ds === 'cities') {
+      el('rect', {x: sc(-1), y: sc(-1), width: sc(1) - sc(-1), height: sc(1) - sc(-1), style: 'fill:none;stroke:var(--grid);stroke-width:1'}, svg);
+      [[1, 1, 'new york', 1], [-1, -1, 'san diego', 1], [1, -1, 'new diego', 0], [-1, 1, 'san york', 0]].forEach(([x, y, lab, ok]) => {
+        const X = sc(x), Y = sc(-y);
+        if (ok) el('rect', {x: X - 5, y: Y - 5, width: 10, height: 10, style: 'fill:none;stroke:var(--fg);stroke-width:1.5'}, svg);
+        else { el('path', {d: `M${X - 5} ${Y - 5}L${X + 5} ${Y + 5}M${X - 5} ${Y + 5}L${X + 5} ${Y - 5}`, style: 'stroke:var(--muted);stroke-width:1.5'}, svg); }
+        const t = el('text', {x: X, y: Y + (y > 0 ? -10 : 18), 'text-anchor': x > 0 ? 'end' : 'start'}, svg); t.textContent = lab;
+      });
+    } else {
+      const pts = range(9).map(k => [Math.cos(2 * Math.PI * k / 8), Math.sin(2 * Math.PI * k / 8)]);
+      el('path', {d: pts.map((p, i) => (i ? 'L' : 'M') + sc(p[0]) + ' ' + sc(-p[1])).join(''), style: 'fill:none;stroke:var(--grid);stroke-width:1'}, svg);
+      pts.slice(0, 8).forEach((p, k) => { const t = el('text', {x: sc(p[0] * 1.13), y: sc(-p[1] * 1.13) + 3, 'text-anchor': 'middle'}, svg); t.textContent = '(' + k + ',' + k + ')'; });
+    }
+    el('path', {d: `M${sc(0) - 4} ${sc(0)}h8M${sc(0)} ${sc(0) - 4}v8`, style: 'stroke:var(--muted);stroke-width:1'}, svg);
+  }
+  function toySvg(id) {
+    const host = document.getElementById(id); host.innerHTML = '';
+    const S = 300, svg = el('svg', {viewBox: `0 0 ${S} ${S}`, role: 'img'}, host);
+    const sc = v => S / 2 + v * S * 0.38;
+    return {svg, sc};
+  }
+  function scatter(id, pts, modes, ds, zoom) {
+    const {svg, sc: sc0} = toySvg(id);
+    const sc = zoom ? (v => sc0(v / zoom)) : sc0;
+    toyFrame(svg, ds, 300, sc);
+    pts.forEach((p, n) => el('circle', {cx: sc(p[0]).toFixed(1), cy: sc(-p[1]).toFixed(1), r: 2.2, style: `fill:${MODE[modes[n]]};opacity:.7`}, svg));
+  }
+  function toyCur() { return (TOY[TS.ds] || {})[TS.teacher] || (TOY[TS.ds] || {}).exact; }
+  function renderToyLayer() {
+    const T = toyCur(); if (!T) return;
+    const i = TS.layer;
+    scatter('toyA', T.student[i], T.mode, TS.ds);
+    scatter('toyB', T.exact[i], T.mode, TS.ds);
+    const W = T.sweep[TS.tau];
+    if (W && W.state) {
+      const clip = p => [Math.max(-2.6, Math.min(2.6, p[0])), Math.max(-2.6, Math.min(2.6, p[1]))];
+      scatter('toyD', W.state[i].map(clip), T.mode, TS.ds, 2);
+      const svg = document.querySelector('#toyD svg'), sc = v => 150 + v / 2 * 300 * 0.38;
+      W.state_target.forEach(p => { const q = clip(p); el('circle', {cx: sc(q[0]).toFixed(1), cy: sc(-q[1]).toFixed(1), r: 3.2, style: 'fill:none;stroke:var(--muted);stroke-width:.7;opacity:.6'}, svg); });
+      document.getElementById('toyTitleD').textContent = tr(`FMLM block ${i} in state space, query 0 → τ_t = ${TS.tau} (t = ${W.t.toFixed(2)})`, `state 공간의 FMLM 블록 ${i}, 쿼리 0 → τ_t = ${TS.tau} (t = ${W.t.toFixed(2)})`);
+    }
+    if (T.match) {
+      const M = T.match, clip = p => [Math.max(-2.6, Math.min(2.6, p[0])), Math.max(-2.6, Math.min(2.6, p[1]))];
+      scatter('toyE', M.layer_state[i].map(clip), T.mode, TS.ds, 2);
+      scatter('toyF', M.exact_state[i].map(clip), T.mode, TS.ds, 2);
+      document.getElementById('toyTitleE').textContent = tr(`Block ${i}: best-matching flow time t = ${M.t[i].toFixed(2)} (measured, not an input)`, `블록 ${i}: 가장 잘 맞는 flow 시간 t = ${M.t[i].toFixed(2)} (입력이 아니라 측정값)`);
+      document.getElementById('toyTitleF').textContent = tr(`Multi-step exact flow state at that time (τ = ${M.tau[i].toFixed(2)})`, `그 시간의 multi-step exact flow state (τ = ${M.tau[i].toFixed(2)})`);
+    }
+    if (T.state) scatter('toyC', T.state[i].map(p => [Math.max(-2.6, Math.min(2.6, p[0])), Math.max(-2.6, Math.min(2.6, p[1]))]), T.mode, TS.ds, 2);
+    document.getElementById('toyTitleA').textContent = tr(`FMLM one step, readout after block ${i}`, `FMLM one step, 블록 ${i} 뒤 readout`);
+    document.getElementById('toyTitleB').textContent = tr(`Exact posterior E[x₁|x_t] at τ = ${T.exact_tau[i].toFixed(2)}`, `τ = ${T.exact_tau[i].toFixed(2)}의 exact posterior E[x₁|x_t]`);
+    document.getElementById('toyTitleC').textContent = tr(`Exact noisy state x_t at τ = ${T.exact_tau[i].toFixed(2)}`, `τ = ${T.exact_tau[i].toFixed(2)}의 exact noisy state x_t`);
+    document.querySelectorAll('.toyLayerStat').forEach(e => { e.textContent = tr(`block ${i}: ${(100 * T.valid[i]).toFixed(0)}% valid sentences, ${(100 * T.agree[i]).toFixed(0)}% tokens = final`, `블록 ${i}: 유효 문장 ${(100 * T.valid[i]).toFixed(0)}%, 최종과 같은 토큰 ${(100 * T.agree[i]).toFixed(0)}%`); });
+    document.querySelectorAll('.toyLayerSl').forEach(e => { if (+e.value !== i) e.value = i; });
+    renderToyPaths();
+  }
+  function renderToy() {
+    const T = toyCur(); if (!T) return;
+    const has = !!(TOY[TS.ds] || {})[TS.teacher];
+    document.getElementById('tt1').disabled = !(TOY[TS.ds] || {}).flm;
+    renderToyLayer();
+    const d9 = range(9);
+    lineChart('c_toyprog', {title: tr('progress across depth', 'depth에 따른 진행'), xmin: 0, xmax: 8, ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+      xticks: [0, 2, 4, 6, 8], xlabel: tr('block', '블록'), tipx: blk,
+      series: [{name: tr('valid', '유효'), x: d9, y: T.valid, color: 'var(--s3)', marker: true},
+               {name: tr('= final', '= 최종'), x: d9, y: T.agree, color: 'var(--s1)', marker: true}]});
+    document.getElementById('toyProgCap').innerHTML = `<b>${TS.ds}, teacher = ${has ? TS.teacher : 'exact'}.</b> ` + (lang === 'ko'
+      ? `One-step 출력이 noise 샘플의 ${(100 * T.endpoint_agree).toFixed(1)}%에서 exact flow의 끝점과 일치합니다. ` +
+        (TS.ds === 'cities' ? '유효한 문장이 8개 블록 전체에 걸쳐 점진적으로 늘어납니다.' : '여기서는 네트워크가 블록 2에서 이미 끝납니다. 마지막 블록들이 대부분의 일을 하는 LM1B와 달리, 이 과제는 depth가 필요 없을 만큼 쉽습니다.')
+      : `The one-step output matches the exact flow's endpoint for ${(100 * T.endpoint_agree).toFixed(1)}% of noise samples. ` +
+        (TS.ds === 'cities' ? 'Valid sentences rise gradually across all 8 blocks.' : 'Here the network is done by block 2: this task is too easy to need its depth, unlike LM1B where the last blocks do most of the work.'));
+    const ex = T.rho_exact;
+    lineChart('c_toyrho', {title: tr('remaining distance ρ', '남은 거리 ρ'), xmin: 0, xmax: 1, ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+      xlabel: tr('normalized progress', '정규화된 진행도'), tipx: v => tr('progress ', '진행도 ') + v.toFixed(2),
+      series: [{name: 'FMLM', x: d9.map(i => i / 8), y: T.rho_depth, color: 'var(--s1)', marker: true},
+               {name: 'exact', x: ex.map((_, k) => k / (ex.length - 1)), y: ex, color: 'var(--s2)', noTip: true}]});
+    renderToyTau();
+    if (T.match) {
+      lineChart('c_toymatch', {title: tr('matched diffusion time per block', '블록별로 맞춰진 diffusion 시간'), xmin: 0, xmax: 8, ymin: 0, ymax: 1.05, yticks: [0, .25, .5, .75, 1],
+        xticks: [0, 2, 4, 6, 8], xlabel: tr('block', '블록'), tipx: blk,
+        series: [{name: tr('matched τ', '맞춰진 τ'), x: d9, y: T.match.tau, color: 'var(--s1)', marker: true},
+                 {name: tr('mismatch', '불일치'), x: d9, y: T.match.err, color: 'var(--sg)', dash: '5 4'}]});
+      const tz = T.match.tau;
+      document.getElementById('toyMatchCap').innerHTML = lang === 'ko'
+        ? `<b>${TS.ds}.</b> 블록별로 맞춰진 τ: ${tz.map(v => v.toFixed(2)).join(', ')}. ` +
+          (TS.ds === 'cities' ? '블록 0–4가 trajectory를 단조롭게 훑습니다. 블록 5–8은 시간 격자의 끝(τ = 0.99, t ≈ 0.8)에 머물면서 깨끗한 문장까지 남은 간격을 계속 줄입니다(불일치가 계속 감소). 블록 0은 느슨하게만 맞습니다(불일치 최대). 블록 3–4에서 블록 state가 네모의 변을 따라 퍼지는데, exact state는 그렇게 하지 않습니다. 네트워크가 state 공간에서 자기만의 경로를 택합니다.'
+                              : 'ring8은 블록 2에서 이미 trajectory 끝에 도달합니다. Depth를 쓰기에는 과제가 너무 쉽습니다.')
+        : `<b>${TS.ds}.</b> Matched τ by block: ${tz.map(v => v.toFixed(2)).join(', ')}. ` +
+        (TS.ds === 'cities' ? 'Blocks 0–4 sweep the trajectory monotonically; blocks 5–8 sit at the end of the time grid (τ = 0.99, t ≈ 0.8) and keep closing the remaining gap to the clean sentence (mismatch keeps falling). Block 0 matches only loosely (largest mismatch). At blocks 3–4 the block state spreads along the square\'s edges, which the exact state never does: the network takes its own route through state space.'
+                            : 'ring8 reaches the end of the trajectory by block 2: the task is too easy to use the depth.');
+    }
+  }
+  function renderToyPaths() {
+    const T = toyCur(); if (!T) return;
+    const W = T.sweep[TS.tau], L = TS.layer;
+    const {svg, sc} = toySvg('toyPaths');
+    toyFrame(svg, TS.ds, 300, sc);
+    W.target.forEach(g => el('circle', {cx: sc(g[0]), cy: sc(-g[1]), r: 4, style: 'fill:none;stroke:var(--fg);stroke-width:1;opacity:.7'}, svg));
+    W.paths.forEach((path, n) => {
+      const c = MODE[T.mode[n]], seg = path.slice(0, L + 1);
+      if (seg.length > 1) el('path', {d: seg.map((p, i) => (i ? 'L' : 'M') + sc(p[0]).toFixed(1) + ' ' + sc(-p[1]).toFixed(1)).join(''), style: `fill:none;stroke:${c};stroke-width:1;opacity:.35`}, svg);
+      const e = path[L];
+      el('circle', {cx: sc(e[0]), cy: sc(-e[1]), r: 2.8, style: `fill:${c}`}, svg);
+    });
+    document.getElementById('toyPathTitle').textContent = tr(`Readout at block ${L} (trail: blocks 0–${L}), query 0 → τ_t = ${TS.tau}`, `블록 ${L}의 readout (궤적: 블록 0–${L}), 쿼리 0 → τ_t = ${TS.tau}`);
+  }
+  function renderToyTau() {
+    const T = toyCur(); if (!T) return;
+    const W = T.sweep[TS.tau];
+    renderToyPaths();
+    const d9 = range(9);
+    lineChart('c_toyclean', {title: tr(`query 0 → τ_t = ${TS.tau}`, `쿼리 0 → τ_t = ${TS.tau}`), vlines: [TS.layer], xmin: 0, xmax: 8, ymin: 0, ymax: Math.min(3, Math.max(...W.kl_clean.slice(1), ...W.kl_target.slice(1)) * 1.15),
+      xticks: [0, 2, 4, 6, 8], xlabel: tr('block (block 0 off scale)', '블록 (블록 0은 범위 밖)'), tipx: blk,
+      series: [{name: tr('KL to clean', 'clean까지 KL'), x: d9.slice(1), y: W.kl_clean.slice(1), color: 'var(--s1)', marker: true},
+               {name: tr('KL to target', 'target까지 KL'), x: d9.slice(1), y: W.kl_target.slice(1), color: 'var(--s2)', dash: '5 4', marker: true}]});
+    const kc = W.kl_clean, m = kc.indexOf(Math.min(...kc));
+    document.getElementById('toyRenoiseCap').innerHTML = lang === 'ko' ? (TS.tau === '1.00'
+      ? '<b>깨끗한 끝점을 요청한 경우.</b> 출력이 깨끗한 문장 자체여야 하고, readout은 depth에 따라 그쪽으로 다가갑니다.'
+      : `<b>Noisy 끝점 τ_t = ${TS.tau}.</b> Exact target δ*₀,ₜ는 두 문장 사이의 선분 위에 있습니다(속이 빈 원). Readout은 블록 ${m}에서 깨끗한 문장에 가장 가깝고(KL ${kc[m].toFixed(2)}), 블록 8까지 다시 target으로 나갑니다(clean까지 KL ${kc[8].toFixed(2)}). 정답을 아는 상태에서 본 denoise 후 renoise입니다.`) : TS.tau === '1.00'
+      ? '<b>Clean endpoint requested.</b> The output should be the clean sentence itself, and the readout approaches it across depth.'
+      : `<b>Noisy endpoint τ_t = ${TS.tau}.</b> The exact target δ*₀,ₜ lies on the segment between the two sentences (hollow circles). The readout is closest to the clean sentence at block ${m} (KL ${kc[m].toFixed(2)}), then moves back out to the target by block 8 (KL to clean ${kc[8].toFixed(2)}). That is denoise-then-renoise with a known ground truth.`;
+  }
+  seg('toyDs', 'v', v => { TS.ds = v; if (!(TOY[v] || {})[TS.teacher]) { TS.teacher = 'exact'; document.querySelectorAll('#toyTeacher button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === 'exact' ? 'true' : 'false')); } renderToy(); });
+  seg('toyTeacher', 'v', v => { TS.teacher = v; renderToy(); });
+  seg('toyTau', 'v', v => { TS.tau = v; renderToyTau(); renderToyLayer(); });
+  function setLayer(i) {
+    TS.layer = i;
+    renderToyLayer();
+    const T = toyCur();
+    if (T) { const W = T.sweep[TS.tau]; lineChart('c_toyclean', {title: tr(`query 0 → τ_t = ${TS.tau}`, `쿼리 0 → τ_t = ${TS.tau}`), vlines: [i], xmin: 0, xmax: 8, ymin: 0,
+      ymax: Math.min(3, Math.max(...W.kl_clean.slice(1), ...W.kl_target.slice(1)) * 1.15), xticks: [0, 2, 4, 6, 8], xlabel: tr('block (block 0 off scale)', '블록 (블록 0은 범위 밖)'), tipx: blk,
+      series: [{name: tr('KL to clean', 'clean까지 KL'), x: range(8).map(k => k + 1), y: W.kl_clean.slice(1), color: 'var(--s1)', marker: true},
+               {name: tr('KL to target', 'target까지 KL'), x: range(8).map(k => k + 1), y: W.kl_target.slice(1), color: 'var(--s2)', dash: '5 4', marker: true}]}); }
+  }
+  document.querySelectorAll('.toyLayerSl').forEach(sl => sl.addEventListener('input', e => { stopPlay(); setLayer(+e.target.value); }));
+  let timer = null;
+  function stopPlay() { if (timer) { clearInterval(timer); timer = null; } document.querySelectorAll('.playBtn').forEach(b => b.textContent = tr('Play', '재생')); }
+  document.querySelectorAll('.playBtn').forEach(btn => btn.addEventListener('click', () => {
+    if (timer) { stopPlay(); return; }
+    document.querySelectorAll('.playBtn').forEach(b => b.textContent = tr('Pause', '일시정지'));
+    if (TS.layer >= 8) setLayer(0);
+    timer = every(() => { if (TS.layer >= 8) { stopPlay(); return; } setLayer(TS.layer + 1); }, 700);
+  }));
+  renderToy();
+  }
+
+  function setLang(l) {
+    TIMERS.forEach(id => clearInterval(id)); TIMERS.clear();
+    const H0 = document.documentElement.scrollHeight || 1, Y0 = window.scrollY || 0;
+    document.getElementById('app').innerHTML = document.getElementById('tpl-' + l).innerHTML;
+    document.documentElement.lang = l;
+    document.querySelectorAll('#langSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.l === l ? 'true' : 'false'));
+    try { localStorage.setItem('dat-lang', l); } catch (e) { /* storage unavailable */ }
+    main(l);
+    if (Y0 > 0 && window.scrollTo) window.scrollTo(0, Y0 * (document.documentElement.scrollHeight || H0) / H0);
+  }
+  document.getElementById('langSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (b && b.dataset.l) setLang(b.dataset.l);
+  });
+  let initLang = 'en';
+  try { initLang = localStorage.getItem('dat-lang') === 'ko' ? 'ko' : 'en'; } catch (e) { /* storage unavailable */ }
+  setLang(initLang);
+})();
+</script>

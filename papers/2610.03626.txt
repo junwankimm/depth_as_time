@@ -1,0 +1,2038 @@
+=== PAGE 1 ===
+DEPTH AS TIME IN ONE-STEP GENERATIVE MODELS
+Arnold Caleb Asiimwe
+William Yang
+Sanghyuk Chun
+Esin Tureci
+Olga Russakovsky
+Princeton University
+ABSTRACT
+The recent wave of one-step generative models, which compress the multi-step
+trajectory of diffusion via either distillation or learned flow maps, has reached an
+inflection point where they can generate high-quality images. Here, we ask a natural
+question that follows from these advances: what happens to the denoising trajectory
+of multi-step diffusion when generation is compressed into a single forward pass?
+We offer an empirical observation we call depth as time: the denoising computation
+that multi-step diffusion performs across sampling steps appears to unfold across
+the depth of a single forward pass, and can be recovered by decoding intermediate
+layers with the model’s own output head. Most interestingly, we show that this
+depthwise computation depends on the transport task a flow map is trained to solve.
+The most surprising case is MeanFlow, where probing shorter transport intervals
+reveals both denoising and renoising within a single network evaluation. In contrast,
+generators trained without a time-indexed transport task, such as drifting models,
+do not exhibit the same depthwise denoising. Consequently, we show that models
+that exhibit the depthwise denoising phenomenon are more compressible across the
+layerwise computation: a MeanFlow SiT-L/2 model can be compressed by 16.6×
+in parameters into a single time-conditioned block. Together, these results suggest
+that the temporal computation of diffusion is not eliminated by one-step generation,
+but reorganized across network depth. Code is available.
+1
+INTRODUCTION
+One-step generative models based on diffusion have recently been shown to produce high-quality
+images without the iterative denoising trajectory of multi-step diffusion, using methods ranging from
+distillation (Salimans and Ho, 2022; Luo et al., 2023; Yin et al., 2024; Zhou et al., 2024) to directly
+learning flow maps (Song et al., 2023; Frans et al., 2025; Boffi et al., 2025; Geng et al., 2025). This
+efficiency, however, seems to remove a defining feature of diffusion- and flow-based generation: the
+explicit trajectory of intermediate states that evolves from coarse to fine-grained detail. This trajectory
+provides a natural axis for intervention and control via guidance methods that modify the generative
+vector field depending on the desired goal. Several downstream advantages of multi-step diffusion
+have followed, ranging from classifier-free guidance (Ho and Salimans, 2022; Wang et al., 2026),
+reinforcement-learning-based control (Black et al., 2024; Wallace et al., 2024; Fan et al., 2023), and
+image editing (Meng et al., 2021; Lee et al., 2026; Liang et al., 2026) to classification (Li et al., 2023;
+Clark and Jaini, 2023), fine-grained generation (Guo et al., 2026; Zarei et al., 2026), and many others.
+It is natural, therefore, to ask what happens to this denoising trajectory when generation is compressed
+into a single forward pass. We show that distilled one-step models and flow maps effectively unroll
+this loop across network depth, and that decoding their intermediate blocks reveals a coarse-to-fine
+progression reminiscent of the one multi-step diffusion exposes across sampling steps. We call this
+observation depth as time. In contrast, one-step models not based on diffusion, such as drifting
+models (Deng et al., 2026), do not appear to exhibit the same transport-organized depthwise trajectory.
+Surprisingly, depth as time can be observed without any additional training. Applying the model’s
+own output head to its intermediate representations recovers a layerwise velocity (Sec. 3.1), from
+which we decode the image at each depth and reveal a progressive, denoising-like pattern (Sec. 3.2).
+Importantly, the depthwise trajectory depends on the transport task the model is asked to solve at
+inference. This becomes especially clear when the model generates a noisy intermediate xr rather
+than the clean endpoint x0. Distilled one-step models under multi-step sampling nest depth as time
+within sampling time, with each sampler step carrying its own depthwise refinement (Sec. 4.1). Flow
+1
+arXiv:2610.03626v1  [cs.AI]  2 Oct 2026
+
+
+=== PAGE 2 ===
+maps conditioned on the transport endpoint such as MeanFlow (Geng et al., 2025) and Shortcut
+models (Frans et al., 2025) instead exhibit a non-monotonic denoise-then-renoise pattern, first
+revealing cleaner image structure before renoising toward the requested noisy endpoint (Sec. 4.2).
+Finally, in Sec. 5, we treat depth as time explicitly by training a single time-conditioned block to
+denoise across layers, yielding an even more compressed one-step generator. For example, we
+compress a MeanFlow SiT-L/2 one-step model for ImageNet-256 × 256 generation by 16.6× (from
+459M to 27.6M parameters) at FID 11.7, which improves to 4.9 with FD-loss post-training (Yang
+et al., 2026), compared with 4.0 for the original model. Performing the same compression on a
+drifting model, by contrast, degrades it to a FID of 47.1.
+2
+PRELIMINARIES: ONE-STEP GENERATIVE MODELS
+Diffusion- or flow-based generative models transport a simple noise distribution toward the data
+distribution along a time-indexed stochastic or deterministic process (Sohl-Dickstein et al., 2015;
+Song et al., 2021; Liu et al., 2022; Lipman et al., 2022; Albergo et al., 2023). In the ordinary
+differential equation (ODE) formulation, the learned vector field specifies the instantaneous velocity
+with which samples evolve along this transport, and sampling amounts to numerically integrating
+it, conventionally requiring repeated network evaluations. A long-standing goal has therefore been
+to approximate this transport using only a few network evaluations—or even a single one—while
+preserving sample quality. Existing approaches broadly include distillation-based methods, which
+transfer the behavior of a multi-step teacher to a faster student through flow-map or distribution-level
+objectives (Salimans and Ho, 2022; Luo et al., 2023; Yin et al., 2024; Zhou et al., 2024; Sauer et al.,
+2024a;b), and methods that learn few-step models (or flow maps) from scratch (Song et al., 2023;
+Frans et al., 2025; Boffi et al., 2025; Geng et al., 2025; Zhou et al., 2025).
+Flow maps (Boffi et al., 2025), in particular, provide a useful description of recent one-step generative
+models based on diffusion. A flow map Φt→r denotes the transport induced by integrating the
+ODE from time t to time r. Throughout, we use transport task to refer to the specific map Φt→r
+that a network is trained to approximate, i.e., the samplewise correspondence between noise level
+t and endpoint r that its output must realize; this is distinct from the downstream task (e.g., class-
+conditional generation) that the model serves. Learned flow maps can be classified by their transport
+task: approximating Φt→0(xt) for Song et al. (2023) and Geng et al. (2024), Φt→r(xt) for Kim et al.
+(2024), Geng et al. (2025), and Zhou et al. (2025), and Φt→t−d(xt) for Frans et al. (2025). The
+corresponding task conditioning τ task can thus be boundary-anchored (t →0), interval-conditioned
+(t →r), or step-conditioned (t →t −d), where the latter two are alternative parameterizations
+related by r = t −d.
+For simplicity, we denote the τ task-indexed network as follows, where its output may parameterize
+the transport map directly or through a velocity or displacement:
+fθ(xt; τ task)
+where
+τ task =
+
+
+
+t,
+e.g., consistency models (Song et al., 2023),
+(t, r),
+e.g., MeanFlows (Geng et al., 2025),
+(t, d),
+e.g., Shortcut Models (Frans et al., 2025).
+Here, xt denotes the network input, t the current noise level, r the desired endpoint time of the
+transport, and d the desired step size. Standard diffusion networks are also conditioned on t, although
+this conditioning alone does not specify a boundary-anchored transport map.
+We contrast these models with methods that lack an explicit time-indexed transport map at inference,
+e.g., drifting models (Deng et al., 2026), whose objectives constrain the distribution of generated
+samples without any time-indexed transport task. We use them as negative controls to distinguish
+generic layerwise refinement from computation organized by a τ task-indexed transport task. We
+provide additional details on one-step generation in Appendix D.
+3
+DEPTH AS TIME
+We introduce depth as time, an empirical observation in which denoising-like structure unfolds across
+the layers of a one-step generative model. We begin by introducing our methodology for comparing
+the intermediate temporal outputs of a multi-step flow model with the intermediate layer-wise outputs
+2
+
+
+=== PAGE 3 ===
+of a one-step compressed model (Sec. 3.1). We then use this methodology to demonstrate the first
+evidence of progressive denoising across layers (Sec. 3.2), drawing three conclusions. First, the
+one-step layers exhibit patterns of denoising, which we call depth as time. Second, the recovered
+layer-wise mixing schedule in one-step models is different from the standard linear schedule in the
+temporal progression of multi-step models. Third, we demonstrate that drifting (τ-independent)
+models do not appear to exhibit depth as time unlike τtask-conditioned models such as MeanFlows.
+3.1
+FROM SAMPLING TIME TO NETWORK DEPTH
+Multi-step flow models expose intermediate states across sampling time, whereas one-step generative
+models expose intermediate representations only across network depth. We therefore introduce a
+methodology for comparing these two forms of progression.
+Consider a multi-step flow model that transports a noisy sample xt toward a clean sample x0 by
+following a learned velocity field. Flow matching (Lipman et al., 2022; Albergo et al., 2023) defines
+a probability path between data and noise, e.g., xt = αtx0 + σtϵ, where ϵ ∼N(0, I) and t ∈[0, 1].
+Under the linear interpolation considered here, αt = 1 −t and σt = t, such that t = 0 corresponds
+to data and t = 1 corresponds to noise. Each sampled interpolation has velocity ϵ −x0, and the
+corresponding marginal velocity field is ut(x) = E[ϵ −x0 | xt = x]. The model is trained to
+approximate this field with vθ(xt, t) ≈ut(xt). Sampling then follows the ODE dxt/dt = vθ(xt, t),
+and exposes an explicit sequence of states xt0, xt1, . . . , xtK across sampling time.
+A one-step generator, by contrast, produces its output in a single network call and exposes no
+such external trajectory. It instead computes a sequence of hidden states h across network depth.
+Concretely, starting from a noisy input z = xt from time step t, and leveraging the task-conditioning
+variable τ task and class conditioning c, a one-step generator with a dimension-preserving residual
+stream produces:
+h0 = E(z),
+hi+1 = Bi+1 (hi; τ task, c) ,
+i = 0, . . . , L −1,
+(1)
+where E is the input embedding, Bi+1 denotes the (i+1)-th network block, and L is the total number
+of blocks. Equivalently, the representation at depth i is obtained by composing the first i blocks, hi =
+(Bi ◦· · · ◦B1)(h0), with the same conditioning supplied to each block. For a velocity-parameterized
+generator, the model’s final prediction is vθ(z, τ task, c) = Wout(hL; τ task, c), where Wout denotes
+the network head, which includes normalization, adaptive layer normalization modulation (AdaLN),
+and a linear projection. Depending on the model, this output represents either an instantaneous
+velocity or an interval-averaged velocity.
+Probe. To probe how the model’s prediction develops across depth, we apply the same final head to
+the hidden state after each block, with the original conditioning and without executing the remaining
+blocks Bi+1, . . . , BL. For layer i, we define
+vi := Wout (hi; τ task, c) .
+(2)
+At i = L, this recovers the model’s ordinary output, vL = vθ(z, τ task, c). At intermediate layers, vi
+measures the velocity prediction accessible through the output head from the residual stream at depth
+i. This probe introduces no learned parameters and does not modify the generator.1
+We then convert each layerwise velocity estimate into the corresponding endpoint prediction. For
+the linear flow-matching interpolation, the clean-image estimate is ˆx0 = xt −t vθ(xt, t); with
+the exact marginal velocity field, which recovers the posterior mean E[x0 | xt]. More generally,
+a velocity-parameterized one-step model predicts an endpoint at time r through ˆxr = xt −(t −
+r) vθ(xt, τ task, c). For an instantaneous velocity prediction, this is a single Euler step, rather than
+an exact integration of the ODE. For an interval-averaged velocity prediction, it is the model’s
+finite-interval transport parameterization as in Geng et al. (2025).
+Applying this conversion to the layerwise readouts for a one-step input xt gives our layerwise
+endpoint probe,
+˜xi
+r = xt −(t −r) vi.
+(3)
+1This parameter-free layerwise readout is closely related to the logit lens in language modeling (nostalgebraist,
+2020). In Appendix B.1 we demonstrate that similar conclusions can be obtained using a separately trained
+linear probe, suggesting a lack of reliance on the particular form of the probe, but not by a random untrained
+probe. Therefore, the observed convergence is semantically meaningful rather than simply numerical.
+3
+
+
+=== PAGE 4 ===
+Normalized denoising 
+remaining  ρ(i)
+Normalized progress
+ (k/K for teacher, i/L for student) 
+Teacher
+Student
+teacher
+student
+noise (t=1)
+8/64
+16/64
+24/64
+32/64
+40/64
+56/64
+48/64
+final K=64
+noise (t=1)
+layer 0
+layer 1
+layer 2
+layer 3
+layer 4
+layer 6
+layer 5
+layer 8
+Figure 1: A one-step toy student distilled from a multi-step teacher appears to denoise across
+depth on the 8-Gaussians toy example. Normalized distance (right) shows that, although both
+progress toward the same endpoint, the student’s depthwise progression need not trace the teacher’s
+sampling-time trajectory. k/K is the normalized sampling step for the teacher, here K = 64 steps.
+Here, r specifies the endpoint being decoded: r = 0 gives the clean-image predictions ˜xi
+0, while
+0 < r < t gives a noisy intermediate predictions ˜xi
+r at different depths i. At the final layer, ˜xL
+r is
+the endpoint predicted by the full network for the corresponding transport problem. Simply put, ˜xi
+r
+asks what endpoint prediction is already implied by the partially formed residual representation hi at
+depth i. Interestingly, these layerwise velocities vi used to construct ˜xi
+r have conceptual connections
+to Neural ODE views of neural networks (Chen et al., 2018) and deep equilibrium models (Bai et al.,
+2019); we discuss these connections in Appendix A.
+3.2
+EVIDENCE OF PROGRESSIVE DENOISING ACROSS LAYERS
+Using the probe methodology of Sec. 3.1, we begin by demonstrating the emergence of depth-as-time
+in simple toy examples. Specifically, after progressively distilling (Salimans and Ho, 2022) a multi-
+step 8-Gaussians teacher into a one-step student, we plot the student’s layerwise endpoint predictions
+˜xi
+0; for the teacher, we plot ˆx0-predictions for each step along its multi-step sampling trajectory in
+Figure 1. The teacher x0-predictions are external and therefore different from internal layerwise ˜xi
+0
+predictions. We also plot the normalized distance to the endpoint using Equation (4).
+The toy example in Figure 1 exhibits layerwise refinement suggestive of denoising, so we next ask
+whether this phenomenon extends to large-scale one-step generators. We apply Equation (2) to
+recent one-step generative models trained with different objectives, including distillation (specifically,
+latent adversarial distillation for FLUX-schnell (Black Forest Labs et al., 2025)), MeanFlow (Geng
+et al., 2025), and Drifting (Deng et al., 2026), and visualize the resulting layerwise predictions ˜xi
+0 in
+Figure 2. For MeanFlow and Drifting, we use the released B/2 checkpoints (12 layers, width 768)
+trained on ImageNet-256 × 256 (Russakovsky et al., 2015).
+Qualitatively, FLUX-schnell and MeanFlow (both τtask-conditioned models; Sec. 2) exhibit progres-
+sive refinement across depth. This progression is also reflected quantitatively by the approximately
+monotonic decrease in normalized endpoint distance from Equation (4). In contrast, the Drifting
+model does not exhibit the same systematic depthwise refinement.
+In addition to plotting the constructed ˜xi
+0 predictions, we also quantify layerwise refinement, by
+measuring how far each intermediate prediction ˜xi
+0 at layer i (of the clean image x0) is from the
+model’s final prediction ˜xL
+0 . For a distance or dissimilarity measure d, we normalize this distance by
+its maximum along the same trajectory:
+ρ(i) :=
+d(˜xi
+0, ˜xL
+0 )
+max1≤j≤L d(˜xj
+0, ˜xL
+0 )
+.
+(4)
+We normalize each trajectory separately before averaging across 32 examples, excluding trajectories
+for which all distances are zero. In our experiments, we use the ℓ2 distance. Figures 1 and 2 show
+how distance evolves across intermediate layers in the toy example and for the one-step FLUX model
+along with their respective teachers.
+Recovering an effective mixing schedule. We note that the layerwise refinement observed above,
+and in particular the normalized distance to the endpoint in Equation (4), is not by itself evidence
+of denoising. To test whether the layerwise decodes exhibit a denoising-like signal–noise structure,
+we take inspiration from the probability-path parameterization in Lipman et al. (2022) and solve the
+inverse problem of recovering depth-dependent mixing coefficients from the layerwise predictions in
+4
+
+
+=== PAGE 5 ===
+Normalized denoising 
+remaining  ρ(i)
+Normalized progress
+ (k/K for teacher, i/L for student) 
+db
+sb
+FLUX-dev vs FLUX-schnell
+
+],^
+_`
+++
++.
++2
+,+
+,.
+,2
+-+
+-.
+-2
+.+
+..
+.2
+
+_\`
++
+,
+-
+.
+/
+0
+1
+2
+3
+4
+,+
+,,
+
+_^`
++
+,
+-
+.
+/
+0
+1
+2
+3
+4
+,+
+,,
+\\_\`
+Figure 2: Depthwise denoising-like progression persists in large-scale one-step image generators.
+Layerwise endpoint predictions from FLUX-schnell and MeanFlow progressively reveal cleaner
+image structure across network depth, while Drifting provides a contrasting τ-independent model. For
+FLUX-schnell, normalized endpoint distance decreases similarly under the model’s output head and
+an independently trained probe, whereas a random probe does not reproduce the same progression.
+Figure 3: Depthwise mixing across one-step generators. A shared linear mixture of the input noise
+and final prediction closely reconstructs intermediate predictions for MeanFlow, FLUX-schnell, and
+Shortcut, with residuals decreasing across depth. In contrast, Drifting exhibits substantially larger
+residuals, indicating that the same two-component mixing model does not explain its depthwise
+trajectory as well.
+Figure 2. The intuition is that, if a single pair of coefficients shared across trajectories can explain
+intermediate predictions as mixtures of the input noise and final prediction, then a denoising-like
+interpretation of depth is plausible.
+We focus on full one-step generation from noisy input to clean output. We recover the coefficients for
+FLUX-schnell, a MeanFlow B/2 model, and a Shortcut B/2 model (Frans et al., 2025), and contrast
+these with a τ-independent Drifting B/2 model. Specifically, for depthwise trajectory n of each model,
+we let ϵn denote the input noise and ˜xL,n
+0
+the final generated prediction, and assume
+˜xi,n
+0
+= αi˜xL,n
+0
++ σiϵn + δn
+i ,
+(5)
+where δn
+i is the unexplained residual. We fit a single pair of coefficients shared across 256 depthwise
+trajectories at each block: (bαi, bσi) = arg minα,σ
+P
+n∈Dtrain ∥˜xi,n
+0
+−α˜xL,n
+0
+−σϵn∥2
+2.
+0
+2
+4
+6
+8
+10
+network depth (block index)
+7.5
+5.0
+2.5
+0.0
+2.5
+coefficient value
+MeanFlow
+0
+2
+4
+6
+8
+10
+network depth (block index)
+0.00
+0.25
+0.50
+0.75
+1.00
+Drifting
+recovered 
+recovered 
+Figure 4: For Meanflows, the recovered depthwise
+schedule is not the flow-matching interpolation
+schedule. Drifting, on the other hand, maintains
+σi ≈0 at every block.
+The mapping i 7→(bαi, bσi) defines our effective
+depthwise mixing schedule. We impose neither
+monotonicity nor positivity, and we do not en-
+force the flow-matching constraint αi + σi = 1.
+Thus, the optimization is unconstrained and any
+observed difference in the signal and noise coef-
+ficients is completely attributed to the depth-as-
+time trajectories. We evaluate how well the fitted
+coefficients reconstruct decoded predictions on
+held-out trajectories in Figure 3.
+Across the four models, Drifting stands out as
+having substantially larger reconstruction residuals between the observed and fitted depthwise
+5
+
+
+=== PAGE 6 ===
+sb00
+step 2
+sb03
+sb07
+sb10
+sb13
+sb17
+sb20
+sb23
+sb27
+sb30
+sb33
+sb37
+step 1
+Figure 5: Each sampler step exhibits its own depthwise denoising progression. Layerwise
+endpoint predictions ˜xi
+r for two-step FLUX-schnell, decoded after each single block (sb). Within
+each NFE, the prediction is refined across depth toward the endpoint prescribed by the sampler: a
+still-noisy intermediate state in step 1, and the clean image in step 2.
+trajectories. In fact, its recovered noise coefficient is σi ≈0 at every block (Figure 4), so its
+intermediate predictions carry no identifiable component of the input noise and do not follow a
+denoising-like path. In contrast, MeanFlow, FLUX-schnell, and Shortcut are each well described by
+a two-component signal–noise mixing model despite being trained with different objectives.
+Notably, the recovered coefficients do not correspond to a standard flow-matching interpolant, for
+which αi, σi ∈[0, 1] and αi + σi = 1 along the path. For MeanFlow, for example, we recover
+α4 = 2.18 and σ4 = −6.04 at block 4 (Figure 4), with both coefficients outside [0, 1]. Thus, although
+the low held-out reconstruction error for MeanFlow (≈0.10 on average across blocks) indicates
+a recoverable signal–noise organization across depth, the recovered schedule is distinct from the
+interpolation schedule used during flow-matching training. We interpret this as depth defining its
+own effective denoising-like coordinate, rather than directly reproducing training time. We provide
+additional details and recovered schedules for the other models in Appendix B.2.
+4
+DEPTH AS TIME GENERALIZES TO ARBITRARY TRANSPORT TASKS
+Our findings so far show depth as time unfolding across the blocks of a single one-step evaluation
+that solves the full noise-to-clean task. However, one-step models based on diffusion are trained
+on a more general transport task that also supports multi-step generation. In this section, we show
+that depth as time extends to arbitrary start and end points along the generation trajectory, in two
+settings: distilled models in Sec. 4.1 and MeanFlow in Sec. 4.2 (and relegate Shortcut models to
+Appendix E.1).
+In distilled models, we find that each sampling step contains its own depthwise refinement, nesting
+depth as time within sampling time. In MeanFlow, the depthwise trajectory adapts to the requested
+transport interval with an interesting property: when the prescribed endpoint is noisy, intermediate
+layers first denoise to reveal cleaner structure and then gradually renoise toward that endpoint.
+4.1
+DISTILLED ONE-STEP GENERATORS NEST DEPTH AS TIME IN SAMPLING TIME
+We first consider distilled one-step models, which are conditioned only on the current state and time
+fθ(xt, t). Because they do not explicitly receive an endpoint r, multi-step generation relies on an
+external sampler that uses each network function evaluation (NFE) to advance from the current time t
+to a prescribed next time r. We refer to the resulting transport problem t →r as a subtask of the full
+1 →0 generation task.
+To probe how computation unfolds within these subtasks, we study two large-scale distilled text-
+to-image models, FLUX-schnell and SANA-Sprint 0.6B (Chen et al., 2025). For each subtask, we
+decode both the endpoint prediction ˜xi
+r and the diagnostic clean prediction ˜xi
+0 following Equation (3).
+The former shows how the layerwise prediction evolves toward the next state prescribed by the
+sampler; the latter shows what clean image is implied by the same intermediate representation.
+Figure 5 shows the layerwise endpoint predictions for FLUX-schnell with generation split into
+two subtasks, and Figure 6 quantifies both predictions using Equation (4) for FLUX-schnell and
+SANA-Sprint across four subtasks.
+Each subtask exhibits its own depthwise refinement. In Figure 5, the prediction in step 1 sharpens
+toward a still-noisy intermediate state; step 2 then restarts from that state and refines toward the clean
+6
+
+
+=== PAGE 7 ===
+Normalized progress (k/K for teacher, i/L for student) 
+FLUX 4-step
+step 1
+step 2
+step 3
+step 4
+Normalized denoising 
+remaining  ρ(i)
+FLUX 4-step
+SANA 4-step
+SANA 4-step
+Figure 6: Sampling time and network depth encode distinct but nested progressions. Normalized
+distance ρ(i) (Equation (4)) for four-step FLUX-schnell and SANA-Sprint, computed from the
+endpoint predictions ˜xi
+r and the diagnostic clean predictions ˜xi
+0. Red curves show the layerwise
+progression within each NFE, gray curves show the multi-step teacher’s sampling trajectory, and
+dashed lines mark sampler steps. The ˜xi
+r curves reset at each step as the sampler advances, whereas
+the ˜xi
+0 curves largely reach the final clean image within the first step.
+Normalized progress  
+Normalized denoising 
+Remaining  ρ(i)
+Step 1
+Step 2
+Step 3 Step 4
+Step 5
+5 step MeanFlow
+denoise
+renoise
+Layers/depth
+step 1
+step 2
+step 1
+step 2
+renoise
+denoise
+Step 2
+Car
+Horse
+(a) MeanFlow on CIFAR-10 (DiT-B/2)
+step 1
+step 2
+step 3
+denoise
+renoise
+One-step
+denoise
+11
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+0
+Layers/depth
+step 1
+step 2
+step 3
+denoise
+reset
+(b) MeanFlow on ImageNet (SiT-B/2)
+Figure 7: Multi-step MeanFlow models trained on CIFAR-10 and ImageNet exhibit the denoise-
+then-renoise pattern. (a) Visualizing ˜xr-predictions on the two-step generation trajectory across
+depth for a MeanFlow trained on CIFAR-102reveals the denoise-then-renoise pattern (top). Quan-
+titatively, the recovered depth schedule ρ(i) for a five-step generation trajectory , which decreases
+and then increases within each step (bottom). (b) We observe the depth as time on a MeanFlow
+with SiT-B/2 trained on ImageNet with one step generation (top). Using the same model but on
+three-step generation, we observe the same denoise and renoise pattern with ˜xr-predictions (middle)
+and ˜x0-predictions (bottom).
+image. In Figure 6, this appears as the ˜xi
+r curves jumping back up each time the sampler advances.
+This reset, however, applies only to the sampler state. The diagnostic ˜xi
+0 predictions show that even
+during the first subtask, 1 →0.75, the final layerwise representation already largely implies the clean
+image at t = 0 (Figure 6, second and fourth panels). The amount of refinement in ˜xi
+0 also shrinks in
+later subtasks as the sampler itself approaches the clean endpoint.
+The endpoint predictions ˜xi
+r, by contrast, do not progress as far toward the clean image within each
+step and can flatten or even reverse within depth, most visibly for FLUX (Figure 6, first panel). This
+is consistent with the model returning toward the prescribed noisy endpoint. In general, this suggests
+that sampling time and network depth are distinct but nested axes of progression. We examine the
+reversal in ˜xi
+r more directly in explicitly interval-conditioned MeanFlow models in Sec. 4.2.
+4.2
+MEANFLOWS DENOISE, THEN RENOISE, TOWARD NOISY ENDPOINTS
+2Most CIFAR-10 diffusion and one-step generation codebases use DDPM++/NCSN++-style U-Nets (Song
+et al., 2021); we train our own DiT-B/2 on CIFAR-10 for this experiment.
+7
+
+
+=== PAGE 8 ===
+Unlike the distilled models of Sec. 4.1, which receive the endpoint r only implicitly through the
+external sampler, MeanFlow (Geng et al., 2025) is explicitly conditioned on the interval (t, r) and
+predicts the average velocity u over it. This lets us ask directly how the requested endpoint shapes the
+depthwise trajectory. The probe of Sec. 4.1 carries over directly, except that the final output head now
+estimates the interval-averaged velocity ui not an instantaneous one. Decoding it gives the layerwise
+endpoint prediction ˜x i
+r = zt −(t −r)ui for r > 0, and a diagnostic clean-image estimate from the
+same velocity, ˜x i
+0 = zt −tui for r = 0.
+For one-step generation, the requested endpoint is clean (r = 0), and MeanFlow behaves as in
+Sec. 3.2: on ImageNet (Russakovsky et al., 2015), the layerwise predictions progress approximately
+monotonically from noise toward the clean image (Figure 7b, top row). Under multi-step sampling,
+each network evaluation instead solves a subtask t →r with r > 0. The diagnostic clean predictions
+˜x i
+0 show that depth as time persists within each subtask: at every step, the layerwise predictions
+again progress toward the clean image, nesting depthwise refinement within sampling time as in the
+distilled models of Sec. 4.1 (Figure 7b, bottom rows).
+The endpoint predictions ˜x i
+r, which track what the network actually outputs for each subtask, reveal
+a different pattern. Because the prescribed endpoint is now noisy, the depthwise trajectory becomes
+non-monotonic: intermediate layers first reveal a cleaner image structure than the desired target,
+and later layers gradually renoise the prediction toward zr. We observe this on both CIFAR-10
+(Krizhevsky, 2009) and ImageNet (Figure 7a, top; Figure 7b, middle rows), where the cleanest
+prediction appears in the intermediate layers (highlighted in red) rather than the noisy endpoint.
+The normalized distance ρ(i) for a 5-step MeanFlow on CIFAR-10 quantifies the same effect: within
+each step, ρ(i) first falls and then rises again before the next step begins (Figure 7a, bottom). We refer
+to this pattern as denoise-then-renoise. It suggests that even when asked for only a partial transport,
+the network passes through an estimate of the clean image.
+Compositional hypothesis for denoise-then-renoise. At first glance, this trajectory is surprising.
+An interval-conditioned model is asked to solve the direct transport zt 7→zr, yet its intermediate
+predictions detour through the clean endpoint estimate before returning to the requested noisy one.
+One candidate explanation is that flow maps satisfy a compositional consistency property (Boffi
+et al., 2025) (or a one-parameteric semigroup). Writing Φt→r for the transport from time t to time
+r, any intermediate time s gives Φt→r = Φs→r ◦Φt→s. Composing through the clean boundary,
+in particular, yields Φt→r(zt) = Φ0→r(Φt→0(zt)), a factorization zt →z0 →zr that matches the
+observed trajectory. Yet, compositional consistency alone cannot be the full explanation since it holds
+equally for every intermediate time s and therefore does not single out the clean endpoint.
+The clean endpoint estimate is instead singled out by the structure of the training target. For example,
+under the linear path zt = (1 −t)x0 + tϵ, the marginal velocity is affine in the posterior clean
+estimate: v(zt, t) = E[ϵ −x0 | zt] = zt−E[x0|zt]
+t
+(Lipman et al., 2022; Albergo et al., 2023)3. A
+single Euler step to any endpoint r therefore gives zt −(t −r) v(zt, t) = r
+t zt +
+1 −r
+t
+
+E[x0 | zt],
+so every endpoint estimate with r < t is an affine combination of zt and E[x0 | zt]. The posterior
+clean estimate is thus a non-trivial computation shared across all of these tasks.
+For MeanFlow, this extends beyond a single Euler step: the average velocity u(zt, t, r) =
+1
+t−r
+R t
+r v(zs, s) ds satisfies the MeanFlow identity: u(zt, t, r) = v(zt, t) −(t −r) d
+dtu(zt, t, r)
+(Geng et al., 2025). The first term, v(zt, t), is independent of r and, determined by the clean estimate
+E[x0 | zt]; the second is an interval-dependent correction that vanishes as r →t. Therefore, a net-
+work trained jointly over many (t, r) pairs has a natural computation to reuse: first resolve the clean
+sample implied by zt, then apply the r-specific correction that carries it to the requested endpoint.
+This two-stage computation matches the observed denoise-then-renoise trajectory in Figure 7.
+5
+MAKING DEPTH AS TIME EXPLICIT
+So far we demonstrated that task-conditioned one-step models refine their predictions across layers in
+a denoising-like manner. A natural next question is whether this layerwise computation can itself be
+explicitly modeled as a flow, with a single weight-shared block applied repeatedly and conditioned
+3The same holds for any affine path zt = αtx0 + σtϵ, since E[ϵ | zt] =
+zt −αtE[x0 | zt]
+
+/σt.
+8
+
+
+=== PAGE 9 ===
+on a time variable that loosely corresponds to the layer index. If so, the one-step model could be
+compressed further in its number of parameters, while also gaining the flexibility to vary the number
+of depthwise steps rather than being tied to a fixed number of layers L.
+Concretely, the one-step model has a sequence of layer-specific blocks {Bi}L
+i=1, with hidden layers
+hi+1 = Bi+1(hi; τ task, c) (eq. (1)). We have demonstrated that these blocks loosely correspond to
+denoising via depth as time. Making this explicit, we can rewrite the model as:
+hτi+1 = Bθ (hτi, (τi, τi+1); τ task, c) ,
+(6)
+with the time interval conditioning (τi, τi+1) replacing the layer-specific transformations. Intuitively,
+we can view this sequence as a flow in the representation space: each application of Bθ over the
+computational interval (τi, τi+1) transports the hidden state hτi to hτi+1. If we set τi = i/L, we
+maintain L steps corresponding to the L layers.
+We train the parameters Bθ using the supervision signal from the L hidden layers h1, . . . , hL of the
+one-step model. We embed the conditioning variables, including the interval (τi, τi+1), and inject
+them into the shared block through adaptive layer normalization (AdaLN) modulation. This training
+is data-free and uses only random noise z ∼N(0, I), sampled class labels, and the one-step teacher
+model representations. See Appendix C.1 for training details.
+Parameter compression. Using this formulation, we compress the MeanFlow SiT-B/2 and SiT-L/2
+one-step models for ImageNet 256×256 from 131M and 459M to 16.0M and 27.6M parameters,
+respectively, corresponding to 8.2× and 16.6× compression. The compressed models reach FID-50k
+15.6 and 11.7, which improve to 8.2 and 4.9 with FD-loss post-training (Yang et al., 2026), compared
+with 6.2 and 4.0 for the original models. Using two unique blocks instead of one trades some
+compression for quality, reaching FID 5.84 with 26.6M parameters (4.9× compression) for SiT-B/2
+and 4.04 with 46.5M parameters (9.9×) for SiT-L/2 after post-training. We ablate the effect of
+conditioning on the interval (τi, τi+1) in Appendix C.4 and show that on CIFAR-10, removing it
+from an otherwise identical weight-shared block more than doubles FID-50k.
+Compute compression. Because Bθ now defines a flow over depth, we can also borrow intuition
+from accelerating diffusion models to reduce inference-time compute, training over coarse intervals
+(τa, τb) that span multiple layers so that Bθ runs fewer than L times. For SiT-L/2 with two unique
+blocks, halving the number of block applications gives FID 5.25, and reducing it by 3× gives 6.11,
+against a teacher FID of 4.01 (after post-training). In contrast, simply running the native-depth
+student with fewer applications degrades FID (Appendix C.3). Much like sampling steps in diffusion,
+the number of depthwise steps thus becomes a knob that trades compute for quality within a single
+forward pass.
+MeanFlow models are more compressible than drifting models. Finally, recall that drifting models,
+which lack a time-indexed transport task or training signal, do not exhibit depth as time (Sec. 3.2),
+even though their predictions still sharpen in later blocks. Consistent with this, making depth as
+time explicit fails for them: with an analogous procedure (Appendix C.5), the drifting B/2 student
+reaches only FID-50k 47.09, about three times worse than the MeanFlow SiT-B/2 student (15.61) at
+a similar compression ratio, despite distilling from a stronger teacher (FID 1.75). It therefore seems
+that refinement along depth is not enough to result in a compressible one-step generator, and that
+the time-indexed transport task is what organizes this refinement into a denoising process compact
+enough for a single time-conditioned block.
+Full training details and results are in Appendix C.
+6
+CONCLUSION
+We began by asking what happens to the denoising trajectory of diffusion when generation is
+compressed into a single forward pass. Through a series of experiments, we showed that one-step
+generative models exhibit a denoising-like progression across network depth, a phenomenon we
+call depth as time. Decoding intermediate representations further revealed that this progression
+reflects the transport task being solved, from approximately monotonic denoising toward clean
+endpoints to denoise-then-renoise when the prescribed endpoint remains noisy. Finally, we made
+this depthwise structure explicit and reveal that models with explicit time-indexed transport maps are
+more compressible. Leveraging this property with weight sharing and coarse depthwise steps, we can
+further compress both parameters and compute, resulting in a more compute efficient one-step model.
+9
+
+
+=== PAGE 10 ===
+ACKNOWLEDGEMENTS
+We thank Prof. Tim Buschman, Prof. Ryan P. Adams, Tyler Zhu, Kaleb Newman, Kun Wang, Arash
+Vahdat, and Julius Berner for their insightful discussions at various points of this project. This work
+was supported in part by the Princeton First-Year Fellowship awarded to ACA, the Princeton Francis
+Robbins Upton Fellowship to SC, and Solidigm AI SW.
+REFERENCES
+Michael S Albergo, Nicholas M Boffi, and Eric Vanden-Eijnden. Stochastic interpolants: A unifying
+framework for flows and diffusions. arXiv preprint arXiv:2303.08797, 2023. 2, 3, 8
+Cem Anil, Ashwini Pokle, Kaiqu Liang, Johannes Treutlein, Yuhuai Wu, Shaojie Bai, Zico Kolter,
+and Roger Grosse. Path independent equilibrium models can better exploit test-time computation.
+In Advances in Neural Information Processing Systems, volume 35, 2022. 15
+Shaojie Bai, J Zico Kolter, and Vladlen Koltun. Deep equilibrium models. In Advances in Neural
+Information Processing Systems, volume 32, 2019. 4, 15
+Kevin Black, Michael Janner, Yilun Du, Ilya Kostrikov, and Sergey Levine. Training diffusion models
+with reinforcement learning. In International Conference on Learning Representations, volume
+2024, pages 4965–4987, 2024. 1
+Black Forest Labs, Stephen Batifol, Andreas Blattmann, Frederic Boesel, Saksham Consul, Cyril Di-
+agne, Tim Dockhorn, Jack English, Zion English, Patrick Esser, et al. Flux. 1 kontext: Flow match-
+ing for in-context image generation and editing in latent space. arXiv preprint arXiv:2506.15742,
+2025. 4
+Nicholas Matthew Boffi, Michael Samuel Albergo, and Eric Vanden-Eijnden. Flow map matching
+with stochastic interpolants: A mathematical framework for consistency models. TMLR, 2025. 1,
+2, 8, 15
+Junsong Chen, Shuchen Xue, Yuyang Zhao, Jincheng Yu, Sayak Paul, Junyu Chen, Han Cai, Song
+Han, and Enze Xie. Sana-sprint: One-step diffusion with continuous-time consistency distillation.
+In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 16185–
+16195, 2025. 6, 25
+Ricky TQ Chen, Yulia Rubanova, Jesse Bettencourt, and David K Duvenaud. Neural ordinary
+differential equations. Advances in neural information processing systems, 31, 2018. 4, 15
+Kevin Clark and Priyank Jaini. Text-to-image diffusion models are zero shot classifiers. Advances in
+Neural Information Processing Systems, 36:58921–58937, 2023. 1, 15
+Mostafa Dehghani, Stephan Gouws, Oriol Vinyals, Jakob Uszkoreit, and Łukasz Kaiser. Universal
+transformers. In International Conference on Learning Representations, 2019. 15
+Mingyang Deng, He Li, Tianhong Li, Yilun Du, and Kaiming He. Generative modeling via drifting.
+arXiv preprint arXiv:2602.04770, 2026. 1, 2, 4, 15, 21
+Ying Fan, Olivia Watkins, Yuqing Du, Hao Liu, Moonkyung Ryu, Craig Boutilier, Pieter Abbeel,
+Mohammad Ghavamzadeh, Kangwook Lee, and Kimin Lee. Dpok: Reinforcement learning for
+fine-tuning text-to-image diffusion models. Advances in Neural Information Processing Systems,
+36:79858–79885, 2023. 1
+David J Field. Relations between the statistics of natural images and the response properties of
+cortical cells. Journal of the Optical Society of America A, 4(12):2379–2394, 1987. 27
+Kevin Frans, Danijar Hafner, Sergey Levine, and Pieter Abbeel. One step diffusion via shortcut
+models. In The Thirteenth International Conference on Learning Representations, 2025. URL
+https://openreview.net/forum?id=OlzB6LnXcS. 1, 2, 5, 15, 26
+Samy Wu Fung, Howard Heaton, Qiuwei Li, Daniel McKenzie, Stanley Osher, and Wotao Yin. Jfb:
+Jacobian-free backpropagation for implicit networks. In Proceedings of the AAAI Conference on
+Artificial Intelligence, volume 36, pages 6648–6656, 2022. doi: 10.1609/aaai.v36i6.20619. 15
+10
+
+
+=== PAGE 11 ===
+Zhengyang Geng, Meng-Hao Guo, Hongxu Chen, Xia Li, Ke Wei, and Zhouchen Lin. Is attention
+better than matrix decomposition? In International Conference on Learning Representations,
+2021a. 15
+Zhengyang Geng, Xin-Yu Zhang, Shaojie Bai, Yisen Wang, and Zhouchen Lin. On training implicit
+models. In Advances in Neural Information Processing Systems, volume 34, pages 24247–24260,
+2021b. 15
+Zhengyang Geng, Ashwini Pokle, William Luo, Justin Lin, and J Zico Kolter. Consistency models
+made easy. arXiv preprint arXiv:2406.14548, 2024. 2
+Zhengyang Geng, Mingyang Deng, Xingjian Bai, J Zico Kolter, and Kaiming He. Mean flows for
+one-step generative modeling. arXiv preprint arXiv:2505.13447, 2025. 1, 2, 3, 4, 8, 15, 25
+Angeliki Giannou, Shashank Rajput, Jy-yong Sohn, Kangwook Lee, Jason D. Lee, and Dimitris
+Papailiopoulos. Looped transformers as programmable computers. In Proceedings of the 40th
+International Conference on Machine Learning, volume 202 of Proceedings of Machine Learning
+Research, pages 11398–11442. PMLR, 2023. 15
+Ian J Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil Ozair,
+Aaron Courville, and Yoshua Bengio. Generative adversarial nets. NeurIPS, 2014. 15
+Fangda Gu, Heng Chang, Wenwu Zhu, Somayeh Sojoudi, and Laurent El Ghaoui. Implicit graph
+neural networks. In Advances in Neural Information Processing Systems, volume 33, pages
+11984–11995, 2020. 15
+Ziyu Guo, Renrui Zhang, Hongyu Li, Manyuan Zhang, Xinyan Chen, Sifan Wang, Yan Feng, Peng
+Pei, and Pheng-Ann Heng. Thinking-while-generating: Interleaving textual reasoning throughout
+visual generation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 26295–26305, 2026. 1
+Jonathan Ho and Tim Salimans. Classifier-free diffusion guidance. arXiv preprint arXiv:2207.12598,
+2022. 1
+Dongjun Kim, Chieh-Hsin Lai, WeiHsiang Liao, Naoki Murata, Yuhta Takida, Toshimitsu Uesaka,
+Yutong He, Yuki Mitsufuji, and Stefano Ermon. Consistency trajectory models: Learning proba-
+bility flow ode trajectory of diffusion. In International Conference on Learning Representations,
+volume 2024, pages 44493–44525, 2024. 2, 15, 25
+Harsh Kohli, Srinivasan Parthasarathy, Huan Sun, and Yuekun Yao. Loop, think, & generalize:
+Implicit reasoning in recurrent-depth transformers, 2026. 15
+Alex Krizhevsky. Learning multiple layers of features from tiny images. Technical report, University
+of Toronto, 2009. 8
+Asher Labovich. Stability and generalization in looped transformers, 2026. 15
+Chieh-Hsin Lai, Yang Song, Dongjun Kim, Yuki Mitsufuji, and Stefano Ermon. The principles of
+diffusion models. arXiv preprint arXiv:2510.21890, 2025. 25
+Junsung Lee, Hyunsoo Lee, Yong Jae Lee, and Bohyung Han. Low-resolution editing is all you need
+for high-resolution editing. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, pages 16216–16225, 2026. 1
+Alexander C Li, Mihir Prabhudesai, Shivam Duggal, Ellis Brown, and Deepak Pathak. Your diffusion
+model is secretly a zero-shot classifier. In Proceedings of the IEEE/CVF International Conference
+on Computer Vision, pages 2206–2217, 2023. 1, 15
+Xinran Liang, Esin Tureci, Prachi Sinha, Ye Zhu, Vikram V Ramaswamy, and Olga Russakovsky.
+Personalized generative models for contextual debiasing. arXiv preprint arXiv:2605.26353, 2026.
+1
+Yaron Lipman, Ricky TQ Chen, Heli Ben-Hamu, Maximilian Nickel, and Matt Le. Flow matching
+for generative modeling. arXiv preprint arXiv:2210.02747, 2022. 2, 3, 4, 8
+11
+
+
+=== PAGE 12 ===
+Xingchao Liu, Chengyue Gong, and Qiang Liu. Flow straight and fast: Learning to generate and
+transfer data with rectified flow. arXiv preprint arXiv:2209.03003, 2022. 2
+Yizhou Liu, Sara Kangaslahti, Ziming Liu, and Jeff Gore. Inverse depth scaling from most layers
+being similar, 2026. 15
+Wenquan Lu, Yuechuan Yang, Kyle Lee, Yanshu Li, and Enqi Liu. Latent chain-of-thought? decoding
+the depth-recurrent transformer, 2025. 15
+Weijian Luo, Tianyang Hu, Shifeng Zhang, Jiacheng Sun, Zhenguo Li, and Zhihua Zhang. Diff-
+Instruct: A universal approach for transferring knowledge from pre-trained diffusion models.
+NeurIPS, 36:76525–76546, 2023. 1, 2, 15
+Chenlin Meng, Yutong He, Yang Song, Jiaming Song, Jiajun Wu, Jun-Yan Zhu, and Stefano Ermon.
+Sdedit: Guided image synthesis and editing with stochastic differential equations. arXiv preprint
+arXiv:2108.01073, 2021. 1
+nostalgebraist. Interpreting gpt: The logit lens. LessWrong, August 2020. Posted 31 August 2020. 3,
+15
+Francesco Pappone, Donato Crisostomi, and Emanuele Rodolà. Two-scale latent dynamics for
+recurrent-depth transformers. arXiv preprint arXiv:2509.23314, 2025. 15
+Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean Ma, Zhiheng Huang,
+Andrej Karpathy, Aditya Khosla, Michael Bernstein, et al. Imagenet large scale visual recognition
+challenge. International journal of computer vision, 115(3):211–252, 2015. 4, 8, 26
+Tim Salimans and Jonathan Ho. Progressive distillation for fast sampling of diffusion models. arXiv
+preprint arXiv:2202.00512, 2022. 1, 2, 4, 15
+Axel Sauer, Frederic Boesel, Tim Dockhorn, Andreas Blattmann, Patrick Esser, and Robin Rombach.
+Fast high-resolution image synthesis with latent adversarial diffusion distillation. In SIGGRAPH
+Asia 2024 Conference Papers, pages 1–11, 2024a. 2, 15, 25
+Axel Sauer, Dominik Lorenz, Andreas Blattmann, and Robin Rombach. Adversarial diffusion
+distillation. In European Conference on Computer Vision, pages 87–103. Springer, 2024b. 2, 15
+Nikunj Saunshi, Nishanth Dikkala, Zhiyuan Li, Sanjiv Kumar, and Sashank J. Reddi. Reasoning with
+latent thoughts: On the power of looped transformers. In International Conference on Learning
+Representations, 2025. 15
+Kristian Schwethelm, Daniel Rueckert, and Georgios Kaissis. How much is one recurrence worth?
+iso-depth scaling laws for looped language models, 2026. 15
+Makoto Shing, Masanori Koyama, and Takuya Akiba. Diffusionblocks: Block-wise neural network
+training via diffusion interpretation. In The Fourteenth International Conference on Learning
+Representations, 2026. URL https://openreview.net/forum?id=pwVSmK71cS. 15
+Eero P Simoncelli and Bruno A Olshausen. Natural image statistics and neural representation. Annual
+review of neuroscience, 24(1):1193–1216, 2001. 27
+Jascha Sohl-Dickstein, Eric Weiss, Niru Maheswaranathan, and Surya Ganguli. Deep unsupervised
+learning using nonequilibrium thermodynamics. In ICML, pages 2256–2265. pmlr, 2015. 2
+Yang Song, Jascha Sohl-Dickstein, Diederik P Kingma, Abhishek Kumar, Stefano Ermon, and Ben
+Poole. Score-based generative modeling through stochastic differential equations. In Interna-
+tional Conference on Learning Representations, 2021. URL https://openreview.net/forum?id=
+PxTIG12RRHS. 2, 7
+Yang Song, Prafulla Dhariwal, Mark Chen, and Ilya Sutskever. Consistency models. arXiv preprint
+arXiv:2303.01469, 2023. 1, 2, 15, 25
+12
+
+
+=== PAGE 13 ===
+Bram Wallace, Meihua Dang, Rafael Rafailov, Linqi Zhou, Aaron Lou, Senthil Purushwalkam,
+Stefano Ermon, Caiming Xiong, Shafiq Joty, and Nikhil Naik. Diffusion model alignment using
+direct preference optimization. In Proceedings of the IEEE/CVF Conference on Computer Vision
+and Pattern Recognition, pages 8228–8238, 2024. 1
+Hanyang Wang, Yiyang Liu, Jiawei Chi, Fangfu Liu, Ran Xue, and Yueqi Duan. Cfg-ctrl: Control-
+based classifier-free diffusion guidance. In Proceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition, pages 11437–11447, 2026. 1
+Kevin Xu and Issei Sato. On expressive power of looped transformers: Theoretical analysis and
+enhancement via timestep encoding. In Proceedings of the 42nd International Conference on
+Machine Learning, 2025. 15
+Jiawei Yang, Zhengyang Geng, Xuan Ju, Yonglong Tian, and Yue Wang. Representation fr\’echet
+loss for visual generation. arXiv preprint arXiv:2604.28190, 2026. 2, 9, 18
+Liu Yang, Kangwook Lee, Robert Nowak, and Dimitris Papailiopoulos. Looped transformers are
+better at learning learning algorithms. In International Conference on Learning Representations,
+2024. 15
+Tianwei Yin, Michaël Gharbi, Richard Zhang, Eli Shechtman, Fredo Durand, William T Freeman,
+and Taesung Park. One-step diffusion with distribution matching distillation. In Proceedings of
+the IEEE/CVF conference on computer vision and pattern recognition, pages 6613–6623, 2024. 1,
+2, 15, 25
+Arman Zarei, Samyadeep Basu, Mobina Pournemat, Sayan Nag, Ryan A Rossi, and Soheil Feizi.
+Slideredit: Continuous image editing with fine-grained instruction control. In Proceedings of the
+IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 14430–14439, 2026. 1
+Linqi Zhou, Stefano Ermon, and Jiaming Song. Inductive moment matching. arXiv preprint
+arXiv:2503.07565, 2025. 2, 15
+Mingyuan Zhou, Huangjie Zheng, Zhendong Wang, Mingzhang Yin, and Hai Huang. Score identity
+distillation: Exponentially fast distillation of pretrained diffusion models for one-step generation.
+In Forty-first International Conference on Machine Learning, 2024. 1, 2, 15
+13
+
+
+=== PAGE 14 ===
+Appendix
+A
+Related Work and Discussion . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15
+B
+Readout Controls and Depthwise Mixing Details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+B.1
+Readout controls . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+B.2
+Depthwise mixing details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+C
+Implementation Details for Making Depth as Time Explicit . . . . . . . . . . . . . . . . . . . . . . . . 17
+C.1
+Distilling the depthwise trajectory . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+C.2
+FD-loss post-training . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+C.3
+Results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19
+C.4
+Ablating the internal time conditioning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20
+C.5
+Drifting models as a negative control . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21
+D
+Extra Background on One-Step Generators . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+D.1
+Distillation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25
+D.2
+Boundary-anchored and interval-conditioned flow maps
+. . . . . . . . . . . . . . . . . . . . . . . 25
+D.3
+Step-conditioned flow maps: Shortcut models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+E
+Extra Analyses on Flow Maps . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+E.1
+Shortcut Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26
+14
+
+
+=== PAGE 15 ===
+A
+RELATED WORK AND DISCUSSION
+This appendix expands the related work in the main text. Multi-step generators compute across
+network calls in sampling time, while a one-step generator computes across the layers of a single
+forward pass. We ask how the former is reorganized into the latter, and whether the resulting
+depthwise trajectory can itself be modeled and compressed as a flow.
+Depth as a dynamical process.
+Neural ODEs (Chen et al., 2018) view a residual update
+hi+1 = hi + g(hi) as an Euler step, with depth playing the role of time. Our layerwise pre-
+dictions vi = Wout(hi; τ task, c), obtained by applying the model’s output layer (normalization,
+AdaLN modulation, and linear projection) to each intermediate state, make this view measurable in
+generative models. Universal Transformers (Dehghani et al., 2019) apply one shared block repeat-
+edly with a per-step timestep embedding, the closest precedent for our explicit model (Section 5);
+our block is instead conditioned on an interval (τa, τb) of an internal clock, which allows steps of
+different sizes. DiffusionBlocks (Shing et al., 2026) treats residual blocks as denoising steps by
+design, assigning each block a range of noise levels so that blocks can be trained independently;
+we find that this correspondence already emerges in one-step generators trained end-to-end. Deep
+equilibrium models (Bai et al., 2019; Anil et al., 2022) and related implicit models (Geng et al.,
+2021a;b; Fung et al., 2022; Gu et al., 2020; Labovich, 2026) define the representation as a fixed point
+z⋆= fθ(z⋆; x).
+Layerwise predictions and probing.
+Computing layerwise predictions with the model’s own
+output layer is the generative analogue of the logit lens (nostalgebraist, 2020), which decodes the
+intermediate states of language models with the unembedding and reveals a gradual refinement toward
+the final prediction. Because what such decodings reveal can depend strongly on the layer and on the
+choice of decoder (Lu et al., 2025), we confirm our results with a trained and a random linear probe
+(Appendix B.1). Representations of diffusion models have mostly been studied across sampling
+time (Li et al., 2023; Clark and Jaini, 2023); we study them across depth within a single evaluation.
+Depth as iterative refinement.
+Depth often implements incremental refinement rather than distinct
+transformations (Liu et al., 2026; Pappone et al., 2025). We find that in one-step generators this
+refinement is shaped by the transport task: it follows a denoising-like schedule (Section 3.2), adapts
+to the requested endpoint (Section 4.2), and, unlike in drifting models, can be compressed into a
+single time-conditioned block (Section 5, Appendix C.5).
+Weight-tied and looped computation.
+Weight tying decouples computation from parameters.
+Looped Transformers can emulate programmable computers (Giannou et al., 2023), learn iterative
+algorithms (Yang et al., 2024), match deeper models (Saunshi et al., 2025), and extrapolate to more
+iterations than seen in training (Kohli et al., 2026), though an extra iteration is worth less than an extra
+layer (Schwethelm et al., 2026). Timestep encodings recover iteration-dependent behavior in looped
+models (Xu and Sato, 2025), and our internal clock plays this role for generation (Appendix C.4).
+One-step generative models.
+One-step generators are obtained by distilling a multi-step
+teacher (Salimans and Ho, 2022; Luo et al., 2023; Yin et al., 2024; Zhou et al., 2024; Sauer et al.,
+2024a;b) or by learning flow maps directly (Song et al., 2023; Kim et al., 2024; Frans et al., 2025;
+Boffi et al., 2025; Geng et al., 2025; Zhou et al., 2025), while GANs (Goodfellow et al., 2014) and
+drifting models (Deng et al., 2026) match only the output distribution (Appendix D). These methods
+compress sampling time; we ask where that computation goes, and show that it can be compressed
+further across depth.
+15
+
+
+=== PAGE 16 ===
+B
+READOUT CONTROLS AND DEPTHWISE MIXING DETAILS
+B.1
+READOUT CONTROLS
+Normalized denoising 
+remaining  ρ(i)
+Normalized progress
+ (k/K for teacher, i/L for student) 
+Random probe 
+Wout
+Trained 
+probe
+db
+sb
+FLUX-dev vs FLUX-schnell
+Figure 8: Readout controls on one-
+step FLUX-schnell. Normalized dis-
+tance ρ(i) to the final prediction under
+the model’s own readout Wout (blue),
+a trained linear probe (red), and a ran-
+dom linear probe (grey), alongside the
+FLUX-dev teacher’s sampling trajectory
+(black). The dashed line marks the tran-
+sition from double-stream (db) to single-
+stream (sb) blocks.
+A natural concern is that the endpoint-convergence pattern
+measured by Eq. (4) may be an artifact of applying the
+model’s final readout Wout to intermediate residual states.
+Since this readout is optimized only for the final repre-
+sentation hL, intermediate states might gradually become
+more compatible with it regardless of whether they encode
+anything meaningful. To assess how the pattern depends
+on the readout, we compare Wout with a trained and a
+random linear probe.
+Trained probe. We fit an independent linear map V
+by closed-form ridge regression on the layer-normalized
+final hidden state, such that V
+LayerNorm(hL)
+
+≈
+Wout
+hL
+
+. The target is the model’s own final predic-
+tion, which may be a velocity v, noise ϵ, or image x. We
+then freeze V and apply it to every intermediate hidden
+state hi; the probe is never trained on intermediate lay-
+ers. On one-step FLUX-schnell, the trained probe traces
+nearly the same trajectory as Wout (Fig. 8), indicating
+that the pattern does not depend on the particular form of
+the readout.
+Random probe. We also evaluate a frozen random linear map with the same input and output
+dimensions as V. We sample Vrand ∼N(0, 1)D×dout and rescale its weights to match the entrywise
+standard deviation of V. At each layer, we compute vrand
+i
+= Vrand
+LayerNorm(hi)
+
+, without
+training the probe to match the model’s predictions. The random probe does not reproduce the
+convergence pattern (Fig. 8): its ρ(i) stays close to 1 through nearly all blocks and drops only in
+the last few, where it reaches zero simply because each trajectory is normalized to its own endpoint.
+The progressive convergence observed with Wout is therefore semantically meaningful rather than a
+numerical artifact of applying any linear map.
+B.2
+DEPTHWISE MIXING DETAILS
+Mixing model. For trajectory n, let ϵn be the Gaussian input latent and ˜xL,n
+0
+the model’s final
+endpoint prediction. At each block i, we fit one coefficient pair (αi, σi), shared across trajectories,
+by unconstrained least squares over all spatial and latent dimensions:
+˜xi,n
+0
+≈αi ˜xL,n
+0
++ σi ϵn.
+Coefficients are fit on a training split, and for i < L we report the held-out reconstruction error
+Ri =
+P
+n
+˜xi,n
+0
+−bαi ˜xL,n
+0
+−bσi ϵn2
+2
+P
+n
+˜xi,n
+0
+−˜xL,n
+0
+2
+2
+,
+normalized by the error of predicting the final output directly, so that Ri = 1 means no improvement
+over this baseline.
+Setup. We analyze MeanFlow B/2 (L = 12), Drifting B/2 (L = 12), FLUX-schnell (single-stream
+blocks, L = 38), SANA-Sprint (L = 28), and Shortcut B/2 (L = 12). For each, we extract N = 256
+trajectories from a single network evaluation with a fixed seed and split them 70/30 into 179 training
+and 77 held-out trajectories.
+Results. For the four task-conditioned models, σi rises from strongly negative values toward zero
+across depth while αi remains of order one (Figure 9), a systematic signal–noise mixing structure.
+For MeanFlow, this structure is fit with low held-out error (mean R ≈0.10), and its coefficients
+extend well outside the [0, 1] range of a flow-matching interpolant, so depth follows its own effective
+schedule. For Drifting, σi ≈0 at every block, so the input noise plays no identifiable role, and the fit
+is substantially worse (mean R ≈0.47).
+16
+
+
+=== PAGE 17 ===
+0.0
+2.5
+5.0
+7.5
+10.0
+block
+7.5
+5.0
+2.5
+0.0
+2.5
+coefficient value
+MeanFlow
+0.0
+2.5
+5.0
+7.5
+10.0
+block
+0.00
+0.25
+0.50
+0.75
+1.00
+Drifting
+0
+10
+20
+30
+block
+6
+4
+2
+0
+Distilled (FLUX, sb blocks)
+0
+5
+10
+15
+20
+25
+block
+6
+4
+2
+0
+SANA-Sprint
+0.0
+2.5
+5.0
+7.5
+10.0
+block
+2
+1
+0
+1
+Shortcut
+recovered 
+recovered 
+Figure 9: Recovered depthwise mixing coefficients (αi, σi). For the task-conditioned models, σi
+rises toward zero across depth; for Drifting, σi ≈0 at every block.
+Normalization control. MeanFlow’s readout uses LayerNorm, which centers its input, whereas
+Drifting’s uses RMSNorm, which does not, so centering could in principle induce the mixing struc-
+ture. We therefore swap only the normalization, keeping the trained AdaLN modulation and linear
+projection: we remove centering from MeanFlow and add it to Drifting, then refit the coefficients
+(N = 192, same protocol). Removing centering leaves MeanFlow’s Ri essentially unchanged, and
+adding it to Drifting makes the fit marginally worse (Figure 10), so the contrast is not an artifact of
+normalization.
+2
+4
+6
+8
+10
+12
+block
+0.2
+0.4
+0.6
+0.8
+1.0
+held-out R (2-coef fit)
+MeanFlow
+LayerNorm (original)
+RMS-only (no centering)
+2
+4
+6
+8
+10
+12
+block
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+1.0
+Drifting
+RMSNorm (original)
+centered (mean subtracted)
+Figure 10: Centering ablation. For MeanFlow, removing centering leaves the held-out reconstruction
+error essentially unchanged across intermediate blocks. For Drifting, adding centering does not
+improve the fit and instead makes it marginally worse. The final block is excluded from the normalized
+Ri comparison because its baseline error is zero by construction.
+C
+IMPLEMENTATION DETAILS FOR MAKING DEPTH AS TIME EXPLICIT
+Here, we provide the details behind Section 5. We first describe how the weight-shared block Bθ is
+trained by distilling the depthwise trajectory of a one-step teacher, and how it is trained and run with
+coarser steps at inference (App. C.1). We then describe FD-loss post-training (App. C.2) and report
+full results for parameter and compute compression, including qualitative samples (App. C.3). Finally,
+we ablate the internal clock on CIFAR-10 (App. C.4) and detail the drifting control (App. C.5).
+C.1
+DISTILLING THE DEPTHWISE TRAJECTORY
+Architecture. The student replaces the L layer-specific blocks of a one-step MeanFlow teacher
+(SiT-B/2, L = 12; SiT-L/2, L = 24) with n ∈{1, 2} unique blocks, applied in alternation for K
+steps. Each application is conditioned on its interval of the internal clock (τa, τb), together with the
+task conditioning τ task = (t, r) = (1, 0) for one-step generation and the class label c, all injected
+through AdaLN modulation. The input embedding E and output readout Wout are copied from the
+teacher and kept frozen, so only the shared blocks and the clock embedding are trained. The shared
+blocks are warm-started from the teacher’s middle block.
+Objective. Let {Hj}L
+j=1 denote the teacher’s hidden states for an input z ∼N(0, I) and label c. A
+student with K applications uses stride s = L/K, and the state hk reached after its k-th application
+is trained to match the teacher state Hks. Because the norms of the teacher’s hidden states grow with
+depth, an unnormalized loss would be dominated by the last layers and effectively ignore early ones,
+so we normalize each term by the norm of its teacher state. We additionally anchor the final decoded
+17
+
+
+=== PAGE 18 ===
+prediction to the teacher’s one-step sample xT
+0 :
+Lcomp(θ) = Ez,c
+"
+1
+K
+K
+X
+k=1
+∥hk −Hks∥2
+2
+∥Hks∥2
+2
++ λ
+(z −v) −xT
+0
+2
+2
+#
+,
+(7)
+where v = Wout(hK; τ task, c) is decoded from the final student state and λ = 1. Since the teacher
+provides its full deterministic trajectory, no self-consistency objective is required, and training is
+data-free: it uses only noise z ∼N(0, I) and sampled class labels, which are replaced by the null
+label with probability punc = 0.1 to support classifier-free guidance (CFG).
+Fixed-K and elastic training. A fixed-K student is trained for a single number of applications
+(Alg. C.1). An elastic student samples K uniformly from a set K at every iteration (Alg. C.2),
+so that one model can be run at any depth in the set; we use K = {2, 4, 6, 12} for B/2 and K =
+{4, 6, 8, 12, 24} for L/2. The parameter-compression models in Section 5 are fixed-K students with
+K = L, so that s = 1 and every teacher state is supervised. When K < L, a few applications over
+coarse intervals replace several fine-grained transitions along depth (Fig. 11).
+Hyperparameters. All fixed-K students, for both B/2 and L/2 and every number of unique blocks,
+are trained for 1.2M iterations with batch size 32, learning rate 10−4 with 2,000 warmup steps, and
+EMA decay 0.9999. The elastic students use the same settings.
+Algorithm C.1 Fixed-K Training
+req: teacher T (depth D), target K
+1
+s ←D/K
+# fixed depth
+2
+repeat
+3
+z ∼N (0, I),
+y ∼p(y)
+# y →∅w.p. punc
+4
+{Hj}D
+j=1 ←T (z, y)
+# frozen
+5
+τa ←lin(0, 1, K),
+τb ←[τ 2:
+a , 1]
+6
+{hk}K
+k=1, v ←fθ(z, y; τa, τb)
+7
+Lh ←
+1
+K
+P
+k∥ˆhk −ˆ
+Hks∥2
+8
+Le ←∥(z −v) −xT
+0 ∥2
+9
+θ ←θ −η ∇θ(Lh + λ Le)
+10
+until converged
+Algorithm C.2 Elastic Training
+req: teacher T (depth D), set K
+1
+repeat
+2
+z ∼N (0, I),
+y ∼p(y)
+# y →∅w.p. punc
+3
+{Hj}D
+j=1 ←T (z, y)
+# frozen
+4
+K ∼Unif(K),
+s ←D/K
+5
+τa ←lin(0, 1, K),
+τb ←[τ 2:
+a , 1]
+6
+{hk}K
+k=1, v ←fθ(z, y; τa, τb)
+7
+Lh ←
+1
+K
+P
+k∥ˆhk −ˆ
+Hks∥2
+8
+Le ←∥(z −v) −xT
+0 ∥2
+9
+θ ←θ −η ∇θ(Lh + λ Le)
+10
+until converged
+flow to one-step 
+depth as time 
+few-steps across depth
+implicit 
+explicit 
+Figure 11: A single application of Bθ over a
+coarse interval (τa, τb) replaces several fine-
+grained transitions.
+Inference and compute accounting. Alg. C.3 gen-
+erates a sample by running the student for K applica-
+tions and decoding once with Wout. With CFG, this
+is done twice. All FLOPs in Table 2 are reported rel-
+ative to the same student at its native depth K = L,
+with CFG in both cases. Note that the MeanFlow
+teacher incorporates guidance into training and is
+evaluated with a single pass (ω = 1), so a student at
+its native depth costs roughly twice the teacher per sample.
+C.2
+FD-LOSS POST-TRAINING
+Algorithm C.3 Inference (1 NFE Generation)
+req: tied block bθ, guidance ω
+1
+choose K
+# fixed: K; elastic: K ∈K
+2
+z ∼N (0, I),
+y ∼p(y)
+3
+τa ←lin(0, 1, K),
+τb ←[τa
+2:, 1]
+4
+for
+c ∈{y, ∅}:
+# cond/uncond
+5
+h ←E(z)
+6
+for
+k = 1..K:
+h ←bθ(h; τa[k], τb[k]; τtask, c)
+7
+vc ←Wout(h)
+# decode once
+8
+v ←v∅+ ω (vy −v∅)
+# guidance
+9
+x0 ←z −v
+# clean sample
+10
+return x0
+After distillation, we optionally fine-tune each
+student with the FD loss of Yang et al. (2026),
+which backpropagates directly through the
+Fréchet distance between generated and real
+feature statistics rather than through a per-
+sample loss. We compute the distance jointly
+in three feature spaces, SigLIP, Inception, and
+MAE, each normalized so that no single space
+dominates, against precomputed moments of
+real ImageNet features. The population mo-
+ments of generated features are tracked with
+an EMA of decay 0.999. We fine-tune for
+20,000 steps with learning rate 10−6 and ef-
+fective batch size 32 (4 × 8 gradient accumu-
+18
+
+
+=== PAGE 19 ===
+lation), keeping the CFG scale fixed at the optimum of the distilled model. Unlike distillation, this
+stage uses statistics of real data.
+C.3
+RESULTS
+Parameter compression. Table 1 reports all fixed-K students at the teacher’s depth. Adding unique
+blocks improves FID at the cost of less compression: for B/2, pre-FD FID improves from 15.61 with
+one block to 12.43 with two. FD-loss post-training improves every model by 3–7.5 FID, with larger
+gains for weaker starting models. Figure 12 places these models among existing one-step generators,
+and Figures 15–17 show paired samples from the SiT-L/2 teacher and its students.
+Model
+Unique blocks
+Params
+K
+Compression
+FID (pre-FD)
+FID (post-FD)
+ω
+MeanFlow SiT-B/2 (teacher)
+12
+131M
+12
+–
+6.17
+–
+–
+Ours
+1
+16.0M
+12
+8.2×
+15.61
+8.17
+1.4
+Ours
+2
+26.6M
+12
+4.9×
+12.43
+5.84
+1.2
+MeanFlow SiT-L/2 (teacher)
+24
+459M
+24
+–
+4.01
+–
+–
+Ours
+1
+27.6M
+24
+16.6×
+11.75
+4.87
+1.4
+Ours
+2
+46.5M
+24
+9.9×
+7.19
+4.04
+1.3
+Table 1: Parameter compression on ImageNet 256×256. FID-50k of fixed-K students at the
+teacher’s depth, before and after FD-loss post-training, each at its optimal CFG scale ω. Compression
+is relative to the teacher’s parameter count. Highlighted rows use a single shared block and are the
+results reported in Section 5; grey rows are the teachers. Adding unique blocks trades compression
+for quality.
+16
+32
+64
+131
+256
+459 675
+parameters (M)
+1
+2
+4
+8
+16
+32
+FID-50k
+DiT-XL/2
+SiT-XL/2
++REPA
+LightningDiT
+RAE-DiT
+iCT-XL/2
+Shortcut-XL/2
+MeanFlow-L/2
+MeanFlow-B/2
+B/2 nub=1
+B/2 nub=2
+L/2 nub=1
+L/2 nub=2
+multi-step (100 250 NFE)
+one-step baselines (as published)
+Depth-as-Time (pre-FD)
+Depth-as-Time (+ FD)
+Figure 12: Parameter efficiency of depth
+as time on ImageNet 256×256. FID-50k
+is reported at each model’s optimal CFG
+scale. Hollow markers denote models be-
+fore FD-loss post-training; filled markers
+denote the same models after. All baselines
+are as reported in their original papers. Our
+students reach competitive FID with 4.9–
+16.6× fewer parameters than their teachers.
+Compute compression. Table 2 reports FID after FD-loss post-training as the number of block
+applications decreases, for two-block students; Table 3 gives the corresponding pre-FD numbers for
+the elastic models, and Figure 13 plots both. Three observations stand out. First, a model trained at its
+native depth cannot simply be run with fewer, coarser applications: probing the native-depth model
+below its training depth collapses to FID above 290. Second, students trained for coarse intervals
+degrade gracefully, especially at larger scale: the L/2 fixed-K student reaches FID 5.25 with half the
+block applications and 6.11 with a third, against a teacher FID of 4.01. Third, a single elastic model
+tracks the separately trained fixed-K models closely at moderate compression (e.g., 6.13 vs. 6.11 for
+L/2 at K = 8), but falls behind at the most aggressive setting.
+B/2 (teacher FID 6.17)
+K
+FLOPs ↓elastic ↓fixed-K ↓native, probed ↓
+12 (native)
+1.00×
+8.75
+5.84
+5.84
+6
+0.50×
+10.17
+8.02
+294.68
+4
+0.33×
+15.24
+11.31
+313.64
+2
+0.17×
+48.01
+23.65
+436.60
+L/2 (teacher FID 4.01)
+K
+FLOPs ↓elastic ↓fixed-K ↓native, probed ↓
+24 (native)
+1.00×
+5.64
+4.04
+4.04
+12
+0.50×
+5.81
+5.25
+474.65
+8
+0.33×
+6.13
+6.11
+461.09
+6
+0.25×
+7.69
+7.04
+613.43
+4
+0.17×
+17.29
+10.27
+637.97
+Table 2: Compute compression on ImageNet 256×256. FID-50k after FD-loss post-training for
+two-block students, each at its optimal CFG scale. FLOPs are relative to the same student at its
+native depth, with CFG in both cases. Elastic is a single model trained over the set K and run at each
+K. Fixed-K is a separate model trained for each K, and degrades gracefully as compute decreases.
+Native, probed is the native-depth model run with fewer, coarser applications than it was trained for,
+which collapses.
+19
+
+
+=== PAGE 20 ===
+B/2 elastic, pre-FD
+K
+12
+6
+4
+2
+FID-50k
+17.89
+24.06
+37.36
+82.02
+ω
+1.5
+1.5
+1.5
+1.7
+L/2 elastic, pre-FD
+K
+24
+12
+8
+6
+4
+FID-50k
+10.55
+12.33
+15.91
+24.23
+47.56
+ω
+1.5
+1.5
+1.5
+1.5
+1.7
+Table 3: Pre-FD FID-50k of the elastic students in Table 2, at the optimal CFG scale ω for each K.
+FID-50K
+K = block applications per generation
+CIFAR-10 compute compression
+K = block applications per generation
+ImageNet-B/2 compute compression
+K = block applications per generation
+ImageNet-L/2 compute compression
+Figure 13: Compute compression of depth as time. FID-50k at the optimal CFG scale against
+the number of block applications K per generation; FLOPs scale approximately linearly with K.
+Fixed-K is a separate tied model trained for each depth; elastic is a single tied model run at every K.
+Solid markers are pre-FD, hollow markers post-FD.
+C.4
+ABLATING THE INTERNAL TIME CONDITIONING
+To test whether the benefit of weight sharing comes from treating depth as time, we compare two
+weight-tied models that differ only in whether they receive the internal clock. No publicly released
+DiT-based MeanFlow model exists for CIFAR-10 to distill from, so both are trained from scratch
+with the MeanFlow (t, r) objective; the CIFAR-10 MeanFlow model analyzed in Fig. 7 is likewise
+our own.
+Setup. Both models use a DiT-B/2 backbone (hidden size 768, 12 heads, patch size 2), class
+conditioning over the 10 CIFAR-10 classes with label dropout 0.1, and EMA decay 0.9999, and both
+are trained for 400k iterations. We compare (i) a single tied block applied K = 20 times with the
+internal clock, and (ii) the identical architecture with the clock removed from the AdaLN modulation,
+so that the block acts identically at every step. Samples are generated in one step (t = 1, r = 0)
+without guidance, and FID is computed against CIFAR-10 training-set statistics.
+Model
+Blocks K
+Params Clock LR (schedule) Batch Steps FID-50k
+Tied + clock
+1
+20
+14.4M
+✓
+10−4 (cosine)
+64
+400k
+21.27
+Tied, no clock
+1
+20
+14.4M
+✗
+10−4 (cosine)
+64
+400k
+45.45
+Table 4: Internal-clock ablation on CIFAR-10, trained from scratch. The two models share
+architecture, parameters, compute, and optimization settings, and differ only in the internal clock.
+Removing it more than doubles FID-50k (21.27 →45.45), showing that the clock is essential to the
+tied block.
+Results. Removing the clock from the tied block more than doubles FID-50k (21.27 →45.45;
+Table 4). Weight tying therefore works only when each application is told where it is along the
+computational trajectory.
+20
+
+
+=== PAGE 21 ===
+C.5
+DRIFTING MODELS AS A NEGATIVE CONTROL
+pixel
+latent
+noise
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+Figure 14: Applying Wout to the residual states of pixel- and latent-space drifting DiT-B/2 models
+does not reveal the depth-as-time structure observed in task-conditioned models.
+Drifting models (Deng et al., 2026) constrain the endpoint distribution without prescribing a time-
+indexed transport task. Although they can still refine their predictions over depth, their intermediate
+residual states do not form the same readable trajectory under the model’s own Wout readout;
+recognizable structure emerges primarily in later blocks (Fig. 14).
+Distillation recipe. We distill the latent-space drifting DiT-B/2 (12 blocks, hidden size 768, 12 heads,
+16 register tokens) into a single tied block with K = 12 and the internal clock. The recipe follows
+the MeanFlow one with two differences. First, because the norm of the teacher’s residual stream
+grows by roughly 141.5× across depth (as opposed to MeanFlow’s 22.9×), we match ℓ2-normalized
+states, supervising their direction. Second, because drifting models have no transport conditioning,
+the student receives only the class label and the interval (τi, τi+1), and its output head predicts the
+image directly.
+Model
+Params
+Compression
+FID-50k
+Degradation
+Drifting B/2 (teacher)
+132.7M
+–
+1.75
+–
+one tied block, K = 12
+15.8M
+8.4×
+47.09
+≈27×
+MeanFlow SiT-B/2 (teacher)
+131M
+–
+6.17
+–
+one tied block, K = 12
+16.0M
+8.2×
+15.61
+2.5×
+Table 5: Compressing a drifting model versus a MeanFlow model into a single time-conditioned
+block (pre-FD, ImageNet 256×256). Both teachers are compressed by a similar factor, yet the
+drifting student degrades far more than the MeanFlow student, despite distilling from a stronger
+teacher.
+Results. As Table 5 shows, this procedure does not produce an effective compressed drifting model:
+at a similar compression ratio, the drifting student reaches FID 47.09, about three times worse than
+the MeanFlow student (15.61).
+21
+
+
+=== PAGE 22 ===
+Teacher (SiT-L/2, 459M)
+Ours, 1 unique block (27.6M) Ours, 2 unique blocks (46.5M)
+FID-50k 4.01
+FID-50k 4.87 (16.6× fewer params)
+FID-50k 4.04 (9.9× fewer params)
+Figure 15: Samples from the MeanFlow SiT-L/2 teacher and its compressed students on Ima-
+geNet 256×256. Each row within a panel is one class, and corresponding positions across the three
+columns use the same initial noise and class label. Students are fixed-K models with K = 24 after
+FD-loss post-training (Table 1). Despite using 16.6× and 9.9× fewer parameters, the students largely
+preserve the teacher’s composition, pose, and color for each sample, with differences mostly in fine
+detail.
+22
+
+
+=== PAGE 23 ===
+Teacher (SiT-L/2, 459M)
+Ours, 1 unique block (27.6M)
+Ours, 2 unique blocks (46.5M)
+FID-50k 4.01
+FID-50k 4.87 (16.6× fewer params)
+FID-50k 4.04 (9.9× fewer params)
+Figure 16: Additional samples from the MeanFlow SiT-L/2 teacher and its compressed students, arranged
+as in Figure 15: each row within a panel is one class, and corresponding positions across the three columns use
+the same initial noise and class label.
+23
+
+
+=== PAGE 24 ===
+Teacher (SiT-L/2, 459M)
+Ours, 1 unique block (27.6M)
+Ours, 2 unique blocks (46.5M)
+FID-50k 4.01
+FID-50k 4.87 (16.6× fewer params)
+FID-50k 4.04 (9.9× fewer params)
+Figure 17: Additional samples from the MeanFlow SiT-L/2 teacher and its compressed students, arranged
+as in Figure 15: each row within a panel is one class, and corresponding positions across the three columns use
+the same initial noise and class label.
+24
+
+
+=== PAGE 25 ===
+D
+EXTRA BACKGROUND ON ONE-STEP GENERATORS
+This appendix reviews the training objectives of the one-step generators analyzed in the main paper,
+following the taxonomy of Section 2. We first cover distillation, where a one-step student is trained
+against a multi-step teacher (App. D.1). We then cover flow maps trained with self-consistency
+objectives, both boundary-anchored and interval-conditioned (App. D.2), and step-conditioned
+(App. D.3). Throughout, we use the convention of Section 3.1: xt = (1 −t)x0 + tϵ, so that
+t = 0 corresponds to data and t = 1 to noise, with instantaneous velocity v(xt, t) and flow map
+Φt→r(xt) := xt −
+R t
+r v(xτ, τ) dτ.
+D.1
+DISTILLATION
+Distillation methods train a one-step generator Gθ(z) to reproduce the output distribution of a
+multi-step teacher. A representative example is distribution matching distillation (DMD) (Yin
+et al., 2024), commonly expressed as a reverse KL divergence between the noised student and
+teacher distributions, LDMD(θ) := Et
+h
+ω(t) Exθ
+t ∼pθ
+t
+
+log pθ
+t (xθ
+t) −log pt(xθ
+t )
+i
+, where ω(t) is a
+time-dependent weighting function. The distributions pt and pθ
+t use the same Gaussian perturbation
+kernel pt(xt | x0) but differ in their clean-data distributions: pdata for real samples and pθ
+0 for
+samples produced by the student. The optimum is attained when pθ∗
+0 = pdata. Because neither log pt
+nor log pθ
+t is available in closed form, DMD estimates the generator gradient from the difference
+between real and fake score functions,
+∇θLDMD = Ez, t, ϵ
+
+ω(t)
+sfake(xθ
+t, t) −sreal(xθ
+t, t)
+⊤∂Gθ(z)
+∂θ
+
+,
+(8)
+where xθ
+t = αtGθ(z) + σtϵ. Here, sreal and sfake estimate the scores of pt and pθ
+t , respectively, and
+sfake is detached when differentiating the generator. The score difference sfake −sreal is contracted
+with the student Jacobian ∂Gθ/∂θ, supervising the student across noise levels t.
+The distilled models we analyze use related objectives. FLUX-schnell is trained with latent adversarial
+diffusion distillation (LADD) (Sauer et al., 2024a), whose discriminator operates on noised samples at
+varying diffusion times, and SANA-Sprint (Chen et al., 2025) combines a continuous-time consistency
+objective with LADD. Although these methods match distributions rather than explicitly reproducing
+the teacher’s sampling trajectory, their learning signal remains indexed by diffusion time. This is one
+reason to expect their students to organize computation along a denoising-like trajectory across depth,
+as we observe in Sections 3 and 4.1.
+D.2
+BOUNDARY-ANCHORED AND INTERVAL-CONDITIONED FLOW MAPS
+Consistency models (Song et al., 2023) learn a flow map whose endpoint is fixed to the clean sample,
+fθ(xt, t) ≈Φt→0(xt). Subsequent work lifts this restriction and learns transport between arbitrary
+pairs of times t and r. Consistency trajectory models (CTM) (Kim et al., 2024) and MeanFlow
+(MF) (Geng et al., 2025) are two instances of this more general formulation.
+Parameterization. CTM parameterizes the map from t to r with a displacement gθ, whereas
+MeanFlow parameterizes the same transport with an interval-averaged velocity uθ(xt, t, r) ≈
+1
+t−r
+R t
+r v(xτ, τ) dτ. Both approximate the flow map:
+Φt→r(xt) ≈r
+t xt + t−r
+t gθ(xt, t, r)
+|
+{z
+}
+CTM
+= xt −(t −r) uθ(xt, t, r)
+|
+{z
+}
+MF
+,
+(9)
+mapping the current state xt to the endpoint xr.4
+Training. Both methods construct their targets largely from the model’s own predictions. Writ-
+ing Gθ(xt, t, r) for CTM’s estimate of Φt→r(xt), CTM enforces self-consistency by requiring
+a direct map from t to r to agree with one that passes through an intermediate time s ∈[r, t],
+4We refer the reader to Chapter 11 of Lai et al. (2025) for a detailed relationship between the two parameteri-
+zations.
+25
+
+
+=== PAGE 26 ===
+LCTM(θ) = Et,s,r Ext∼pt
+Gθ(xt, t, r) −Gθ−
+
+ˆΦt→s(xt), s, r
+
+2
+2
+
+, where ˆΦt→s is obtained
+by numerically solving a pretrained teacher’s ODE from t to s, and θ−denotes detached pa-
+rameters. MeanFlow instead trains the interval-averaged velocity using the instantaneous veloc-
+ity together with a correction involving the total derivative of the interval average, LMF(θ) =
+Et,r Ext∼pt
+huθ(xt, t, r) −sg
+v(xt, t) −(t −r) d
+dtuθ(xt, t, r)
+2
+2
+i
+, where sg(·) denotes the stop-
+gradient operator.
+Clean versus interval endpoints. The distinction between clean-endpoint and interval-endpoint
+prediction is central to the depthwise behavior we observe. When r = 0, the model transports xt
+directly to the clean sample x0. In a multi-step flow map, however, r may be greater than zero, so the
+target xr remains a noisy intermediate state. MeanFlow is therefore trained to predict an average
+velocity anchored to the interval endpoint xr, rather than always to the clean image x0. As we show
+in Section 4.2, this difference in the training objective changes the structure of the trajectory across
+depth, producing the denoise-then-renoise pattern.
+D.3
+STEP-CONDITIONED FLOW MAPS: SHORTCUT MODELS
+Shortcut models (Frans et al., 2025) condition the network not only on the current time t but also on
+a desired step size d. The model learns a shortcut sθ(xt, t, d) that transports xt to the state a distance
+d closer to the data,5 x′
+t−d = xt −d sθ(xt, t, d), so that r = t −d in the notation of Section 2. As
+d →0, the shortcut reduces to the instantaneous velocity.
+Rather than regressing onto a teacher-defined target, Shortcut models exploit a self-consistency
+relation: one step of size 2d should agree with two consecutive steps of size d, sθ(xt, t, 2d) =
+1
+2sθ(xt, t, d) + 1
+2sθ(x′
+t−d, t −d, d). This yields a joint objective that combines flow matching at
+d = 0 with self-consistency at d > 0,
+LS(θ) = Ex0∼pdata, ϵ∼N(0,I), (t,d)
+h
+∥sθ(xt, t, 0) −(ϵ −x0)∥2
+2 + ∥sθ(xt, t, 2d) −starget∥2
+2
+i
+,
+(10)
+where starget = sg
+ 1
+2sθ(xt, t, d) + 1
+2sθ(x′
+t−d, t −d, d)
+
+is constructed from the model’s own pre-
+dictions. The flow-matching term anchors the model to the instantaneous velocity ϵ −x0, while
+the self-consistency term propagates this capability from short steps to progressively larger ones,
+including the one-step setting.
+E
+EXTRA ANALYSES ON FLOW MAPS
+E.1
+SHORTCUT MODELS
+Setup.
+Algorithm E.1 Shortcut Depth Probe
+1 z ←z1
+2 for (t, d) ∈{(1, 0.5), (0.5, 0.5)} do
+3
+{hi}L
+i=1 ←sθ(z; t, d)
+4
+for i = 1, . . . , L do
+5
+si ←Wout(hi; t, d)
+6
+˜x i
+t−d ←z −d si
+7
+˜x i
+0 ←z −t si
+8
+end for
+9
+z ←z −d sL
+10 end for
+Shortcut models (Frans et al., 2025) differ from Mean-
+Flow in their task conditioning: instead of an endpoint
+time r, the network receives the current noise level t and
+a step size d, so that τ task = (t, d) and the endpoint is
+r = t −d (Appendix D.3). We compute layerwise predic-
+tions (Eq. (2)) for a DiT-B/2 Shortcut model sθ trained on
+ImageNet (Russakovsky et al., 2015), using the two-step
+schedule 1 →0.5 →0, which corresponds to the two
+network evaluations sθ(z1, 1, 0.5) and sθ(z0.5, 0.5, 0.5)
+(Alg. E.1). From the shortcut predicted at block i, si, we
+decode the endpoint prediction with the model’s own up-
+date rule, ˜x i
+t−d = zt −d si, and the diagnostic clean prediction ˜x i
+0 = zt −t si. The first evaluation
+therefore decodes blockwise predictions of the noisy state z0.5, and the second decodes blockwise
+predictions of z0.
+5We state Shortcut models in our time convention, in which t = 0 is data; the original formulation uses the
+reverse convention.
+26
+
+
+=== PAGE 27 ===
+Radial frequency
+Power 
+Normalized progress  
+Normalized denoising 
+remaining t(i)
+Step 1
+Step 2
+Step 3
+3 step Shortcut Model
+Nyquist limit
+Frequency analysis
+step 1
+step 2
+step 1
+Layers/depth
+11
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+0
+step 2
+Figure 18: Depth as time in a Shortcut model. Top: endpoint predictions ˜x i
+t−d across depth during
+a two-step rollout. Within the first step, whose endpoint is noisy, predictions first reveal cleaner
+structure and then return toward the prescribed endpoint. Bottom left: normalized distance ρ(i)
+computed from the diagnostic clean predictions ˜x i
+0. Bottom right: radially averaged power spectra of
+the endpoint predictions in the first step. Intermediate blocks move toward the clean-image spectrum
+before later blocks return toward the noisy endpoint spectrum.
+Observations. The Shortcut model shows the same denoise-then-renoise pattern as MeanFlow
+(Section 4.2). In the first step, whose endpoint x0.5 is noisy, the layerwise predictions first reveal
+cleaner structure and then return toward the endpoint in the final blocks (Fig. 18, top), and ρ(i)
+correspondingly decreases and then increases within the step (Fig. 18, bottom left). Depth as time
+thus extends to step-conditioned flow maps.
+Frequency-domain signature. We also compute the radially averaged power spectrum of each
+endpoint prediction in the first step (Field, 1987; Simoncelli and Olshausen, 2001): for block i,
+Pi(ω) = |F[˜x i
+t−d](ω)|2, averaged over frequencies of equal magnitude κ = ∥ω∥2 to give ¯Pi(κ).
+Intermediate blocks shift power toward the clean-image spectrum, and later blocks shift it back toward
+the noisier endpoint spectrum (Fig. 18, bottom right), confirming the pattern in frequency space.
+27

@@ -1,0 +1,94 @@
+{
+ "name": "lm1b_tied2_split_K12",
+ "args": {
+  "teacher": "FMLM-B-LM1B",
+  "variant": "tied2_split",
+  "K": null,
+  "split": 7,
+  "groups": "0|1|2-5|6|7-10|11",
+  "init": "auto",
+  "log_every": 1000,
+  "steps": 150000,
+  "batch_size": 32,
+  "lr": 0.0001,
+  "warmup": 2000,
+  "ema": 0.999,
+  "lam": 1.0,
+  "eval_every": 25000,
+  "n_eval": 256,
+  "ckpt_every": 2000,
+  "ppl_model": "openai-community/gpt2-large",
+  "tokenizer": "google-bert/bert-base-uncased",
+  "seed": 0,
+  "out": "results/compress"
+ },
+ "init": [
+  0,
+  10
+ ],
+ "n_teacher": 139342394,
+ "n_student": 62664250,
+ "n_trainable": 15454208,
+ "log": [
+  {
+   "agree_teacher": 0.573272705078125,
+   "kl_teacher": 1.65981125831604,
+   "gen_ppl": 95.22648186272471,
+   "entropy": 3.8663490572944283,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are [CLS] but this is have a problem that year along with you and this is as much. [CLS] could for they are now as the that that than the world and only on the day, regardless of one in the better of [CLS] from this world, that for that will",
+   "step": 25000
+  },
+  {
+   "agree_teacher": 0.605865478515625,
+   "kl_teacher": 1.4803522229194641,
+   "gen_ppl": 100.01017067751964,
+   "entropy": 3.9120172169059515,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are not but this is just a in that have as with you and this is in demand. [CLS] could for they are now as the that that than the world and only on the day, much of one in the better of [CLS] from this month, that the country will",
+   "step": 50000
+  },
+  {
+   "agree_teacher": 0.624359130859375,
+   "kl_teacher": 1.380006194114685,
+   "gen_ppl": 100.989208361265,
+   "entropy": 3.936386746354401,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are not but this is just a in that have as well iran and this is in demand. [CLS] could for they are now as the that that than the world and only on the day, much of one in the better of [CLS] from this month, that the country will",
+   "step": 75000
+  },
+  {
+   "agree_teacher": 0.63916015625,
+   "kl_teacher": 1.3034410774707794,
+   "gen_ppl": 102.04521018452257,
+   "entropy": 3.957312452606857,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are not but this is just a in that have as well like and this being in demand. [CLS] could for they are now & is thatr than the world can only on the day, much of one in the better of [CLS] from this month, that the country will",
+   "step": 100000
+  },
+  {
+   "agree_teacher": 0.650604248046875,
+   "kl_teacher": 1.2362905442714691,
+   "gen_ppl": 104.51306807841968,
+   "entropy": 3.9766403567045927,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are not but this is just a in that have as well like and this being in demand. [CLS] could for they same now & is that more than the world can only on the street, much of one in the better of people from this month, that the country will",
+   "step": 125000
+  },
+  {
+   "agree_teacher": 0.66082763671875,
+   "kl_teacher": 1.1820656061172485,
+   "gen_ppl": 105.64350695930385,
+   "entropy": 3.9891426526010036,
+   "gen_ppl_teacher": 115.28952299392394,
+   "entropy_teacher": 4.1388230146840215,
+   "sample": "[CLS] that that ' s is are not but this is just a year that have as well like and this being in well. [CLS] and for the same now as is that more than the world can only on the street, much of one in the better of people from this month, that the country will",
+   "step": 150000
+  }
+ ]
+}
