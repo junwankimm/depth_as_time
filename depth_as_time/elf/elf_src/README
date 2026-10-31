@@ -1,0 +1,2 @@
+Vendored from https://github.com/lillian039/ELF (branch distillation, commit 346f00bca2920f950a1153c5f37ead861e313049),
+src/modules/{model,layers}.py, unmodified. MIT license (see LICENSE).

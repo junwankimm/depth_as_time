@@ -1,0 +1,332 @@
+{
+ "teacher": {
+  "unigram_entropy": 4.143688194220886,
+  "distinct1": 0.6305618286132812,
+  "distinct2": 0.9496032234251969,
+  "repeated_bigram_rate": 0.05039677657480316,
+  "top10_token_share": 0.31591796875,
+  "samples": [
+   "[CLS] administration from a deal with another six history,, such as the about the united as, with the election commission. [CLS] those says no sense at it. [CLS] but for it t or not that will be next important that american he is made - line people - - he will not, have, show and, in a race that have by americans just from nowhere to be less. [CLS] it is a statistically only age four and since there has three 20. [CLS] others to find it than one - are also to blame because of the home, - baseded birth control. [CLS] washington, anyone who change that the family is down [CLS]",
+   "[CLS]s that will come up for \" a world the \" \" whether the country ' s play be works. [CLS] \" i think this week, \" said the last year as to became a private show against her. [CLS] the old he would have to wear something energy is like his no past, the man of the boys. [CLS] a year he will be at 7 - 4, left after nine per win - through the next two - and risk the hit for the 5s in the next season, and that in the biggest need. [CLS] i have been from my - st - think as do not [CLS] it is not to be in [CLS]",
+   "[CLS] to get the us council or a ( eu ) regardless of whether she ' s going to return should \" three, and to look at it, \" \" adds. [CLS] \" at this time, more so but before, they are at the time : i do his own and was still doing this as well as her way home on with lots of us. [CLS] the did not end in up one this year, officials said. [CLS] my two - year - old daughter said she health ' because three has when, with the next year, was black as none of the it. [CLS] we ' m lucky enough, if the. were [CLS]",
+   "[CLS] not be important. [CLS] the most interesting - - so big - - found that bank of them were aware there were so few they became, didn ' t have to themselves like and money, which required the us state court for support, and state for again. [CLS] it will get on the \" as an have been with you that other, \" he said. [CLS] \" on the basis of that, it has 100 days at which will do. [CLS] the story will be set in west virginia. [CLS] he wants to keep, and the statement werek, which came to he has in earlier this year. [CLS] ten years later, [CLS]"
+  ],
+  "top10_tokens": [
+   [
+    "[CLS]",
+    0.0539
+   ],
+   [
+    "the",
+    0.0526
+   ],
+   [
+    ".",
+    0.0456
+   ],
+   [
+    ",",
+    0.0396
+   ],
+   [
+    "to",
+    0.0232
+   ],
+   [
+    "and",
+    0.0219
+   ],
+   [
+    "-",
+    0.0212
+   ],
+   [
+    "a",
+    0.0194
+   ],
+   [
+    "of",
+    0.0193
+   ],
+   [
+    "in",
+    0.0192
+   ]
+  ]
+ },
+ "lm1b_tied_struct_K12_g2b6": {
+  "unigram_entropy": 4.072158105438575,
+  "distinct1": 0.5960464477539062,
+  "distinct2": 0.9458968996062993,
+  "repeated_bigram_rate": 0.0541031003937008,
+  "top10_token_share": 0.33185577392578125,
+  "samples": [
+   "[CLS] force from a deal with by six history, and such as, about the united states, with the international a. [CLS] those said no won at it. [CLS] but for ' t or not that will be next. [CLS] but he is made like in people - - david will not, have, show however, in a city - have by a just from nowhere to be less. [CLS] it is a notly only on sunday and just there has a 20. - - to find it another one - are also to buy because of the home \" - his in last test. [CLS] washington,, who change that the family is down [CLS]",
+   "[CLS]s that will come up for \" a world. \" [CLS] whether the country ' s play is victory. [CLS] \" i think this week, \" said the last year still to became a chance to against before. [CLS] the old he would have to tell something energy is now his no past, \" man of the world. [CLS] a year he will be at 7 - 4, left five late state win - through the next two - to risk the hit for the 5s in the next season, says that in the so need. [CLS] i have been very my - - - think as you not saying it is not to be in [CLS]",
+   "[CLS] to get the us council or, ( if that as of whether she ' s not in you should to three, and who look at it, \" \" children. [CLS] \" at this time, more so but before, they are at the time : i do his own and was still in this as well as her way home was new kind of other. [CLS] the economy not end in up one this year, of all. [CLS] for two - of -, have said she health following because three has jobs, with the next year, was black as one of the it. [CLS] i ' m be., if the. were [CLS]",
+   "[CLS] not be important. [CLS] the most important - - these big - - second that one of them were [CLS] there were a few one became, can ' t have to like like and money, up to the with state court for support, and state for you. [CLS] it will get on the big as well have been with you that he, \" he said. [CLS] \" on the end of that, it has 100 days, which this do. [CLS] the government ' be police in west can. [CLS], but to keep, and the results were also, which came to he has in to this year. [CLS] to years bush, [CLS]"
+  ],
+  "top10_tokens": [
+   [
+    "[CLS]",
+    0.0561
+   ],
+   [
+    "the",
+    0.054
+   ],
+   [
+    ".",
+    0.0479
+   ],
+   [
+    ",",
+    0.042
+   ],
+   [
+    "to",
+    0.0248
+   ],
+   [
+    "-",
+    0.0234
+   ],
+   [
+    "and",
+    0.0229
+   ],
+   [
+    "of",
+    0.0205
+   ],
+   [
+    "a",
+    0.0204
+   ],
+   [
+    "in",
+    0.0198
+   ]
+  ]
+ },
+ "lm1b_untied_K4": {
+  "unigram_entropy": 4.084865894168615,
+  "distinct1": 0.600433349609375,
+  "distinct2": 0.9487727608267716,
+  "repeated_bigram_rate": 0.051227239173228356,
+  "top10_token_share": 0.3250885009765625,
+  "samples": [
+   "[CLS] one from a deal with another six history, and doesn as t about the united states up with the election a. [CLS] it who no won at it. [CLS] but for ' t or not that so be more important that american he is made much line people - - david will not, have, show say, in a race that from by a just from running to be less. [CLS] it is a notly only age four and since there has three 20. - - to find more than one - are also to great because of the home \" from his her last test. [CLS] washington,, who change that the family is down [CLS]",
+   "[CLS]s that will come up for \" the world. \" \" whether the country ' s play this week. [CLS] \" least think this week, \" said the last year still to 17 a chance to make before. [CLS] the old he would have to decide something energy is now his no part, \" man of the league. [CLS] a year he will be at about - 4, left after 1 state win - through the next two - to risk the that for the 5s in the next season, and that in the fourth quarter. [CLS] i have been very in - - - think as do not believe it is not to be in [CLS]",
+   "[CLS] as they the us council or, ( if that as of whether she ' s not to as should or three, and who look at it, \" he added. [CLS] \" at this time, more i but having, they are at the time : i do his own and was still in this as well as her way home was with way of other. [CLS] to did not end in up one this year, of all. [CLS] for two - of -, police said she health care because three has when i with the next year, was black as all of the it. [CLS] we ' m be enough, if the. were [CLS]",
+   "[CLS] not be important. but the most important - - so big - - is that one of them s four there were so few they ), can ' t have them themselves like and money, up just the with state court for that, and state do you. [CLS] it will get on the big as obama have been with you that other, \" he said. [CLS] \" on the end of that, it has 100 days, now will do will in the government will be set in west can. [CLS] there but to keep, and the statement were also the which came to he has said in this year. [CLS] six years later, [CLS]"
+  ],
+  "top10_tokens": [
+   [
+    "[CLS]",
+    0.055
+   ],
+   [
+    "the",
+    0.0524
+   ],
+   [
+    ".",
+    0.0479
+   ],
+   [
+    ",",
+    0.041
+   ],
+   [
+    "to",
+    0.0242
+   ],
+   [
+    "-",
+    0.023
+   ],
+   [
+    "and",
+    0.0227
+   ],
+   [
+    "a",
+    0.0203
+   ],
+   [
+    "of",
+    0.0196
+   ],
+   [
+    "in",
+    0.019
+   ]
+  ]
+ },
+ "lm1b_untied_K2": {
+  "unigram_entropy": 4.085015940014273,
+  "distinct1": 0.5999984741210938,
+  "distinct2": 0.9530711737204725,
+  "repeated_bigram_rate": 0.046928826279527575,
+  "top10_token_share": 0.3210296630859375,
+  "samples": [
+   "[CLS] one from a deal, by six history, it such 5 t about the service as, with the election.. [CLS] those said no won running it. [CLS] but for ', or not that so be more. that but he is made. line people - - victory at not, who, all however, in a ori from by a just from, to be less. [CLS] it people say notly only with sunday and since there has three 20. - others to find it than s democrats are also to great college of on home \" from with in last test. [CLS] washington, if who change that the family is down [CLS]",
+   "[CLS] think that will come up for \" that of the \" \" whether the country ' s said up week. [CLS] \" i of this week space \" said the last year still to became a than to make before. [CLS] the old he would have to my something energy is now his no past, the man of the not. [CLS] but year he will be, one - -, left? can state win - through the next two - to risk say hit for the 5s way from these office, britain that in the so need. [CLS] his have been the market - - - which as you not be at is not to be in [CLS]",
+   "[CLS] as get the us - or, he added ) change of whether that ' s not to as should to three, and who look at it, very \" children. [CLS] \" at this current, but i but having, more are at the b year i do his own and was still in this as well not her her home was new way of other. but. [CLS] not end in up one this year, of all. [CLS] since two - of those, have said. [CLS] following because three has when show with the next year, second black as up of them it. [CLS] we that m to enough, if me not were [CLS]",
+   "[CLS] not be says. [CLS] the most will - for a big - - second that one of they were four there, so ( they 10 never doesn ' t have them themselves like and money, which to the with state court for minutes, and state do again. [CLS] it will get on the big as an have been with you that he, half he said. [CLS] \" on the market of that, it has from days at which this year. in the story ' s set in the can. [CLS], but to keep, and the players was also, which. [CLS] he has said to this not. point make too bush, [CLS]"
+  ],
+  "top10_tokens": [
+   [
+    "[CLS]",
+    0.0562
+   ],
+   [
+    "the",
+    0.0509
+   ],
+   [
+    ".",
+    0.0484
+   ],
+   [
+    ",",
+    0.0398
+   ],
+   [
+    "-",
+    0.0237
+   ],
+   [
+    "to",
+    0.0229
+   ],
+   [
+    "and",
+    0.0218
+   ],
+   [
+    "a",
+    0.0196
+   ],
+   [
+    "in",
+    0.019
+   ],
+   [
+    "of",
+    0.0187
+   ]
+  ]
+ },
+ "lm1b_tied_struct_K12_g4": {
+  "unigram_entropy": 4.085487570147961,
+  "distinct1": 0.6018447875976562,
+  "distinct2": 0.947750061515748,
+  "repeated_bigram_rate": 0.05224993848425198,
+  "top10_token_share": 0.3279266357421875,
+  "samples": [
+   "[CLS] report from a deal with by six history, and such as, about the united states, with the election vote. [CLS] it said no won at it. [CLS] but for ', or not that will be more on that american he is made like line people - - he will not, have to show and, in a race - from by a just from seems to be less. [CLS] it is a notly only age four and just there has three 20. [CLS] others to find more than one - are also to give because of the home, from with her future test. [CLS] washington, if who change that the family is down [CLS]",
+   "[CLS]s that will come up for \" that in the \" \" whether the country ' s play up week. [CLS] \" i think this week, \" said the last year still to 17 a private to against them. [CLS] the old he would have to my something energy is like his no part, the man of the world. [CLS] a year he will be at 7 - 4, to win 3 per cent - through the next two - to risk the hit for the 5s in from next season, and that in the so need. [CLS] i have been very my - - - think as you not believe it is not to be in [CLS]",
+   "[CLS] to get the us if or a ( management that as of whether she ' s not in you should no three, and who look at it, very \" says. [CLS] \" at this time, so so but before, they are at the time : i do his own and was still doing this as well as her way home was new york of other. but to did not end in up one this year, of all. [CLS] for two - of - old have said she health care because three has when, with the next year, was black as one of the games. [CLS] we ' m be enough, if we. were [CLS]",
+   "[CLS] not be important. [CLS] the most companies - - so big - - second that bank of them were four there were so few they that never didn ' t have them themselves like and money, which to the with state court for schools, and state for so. [CLS] it will get on the \" as obama have been with you that other, \" he said. [CLS] \" on the end of that, it has 100 days at now this do. [CLS] theing ' s police in west can he [CLS], but to keep, and the statement werek, which. to he has said to this year one point to barack bush, [CLS]"
+  ],
+  "top10_tokens": [
+   [
+    "[CLS]",
+    0.0552
+   ],
+   [
+    "the",
+    0.0538
+   ],
+   [
+    ".",
+    0.0474
+   ],
+   [
+    ",",
+    0.0413
+   ],
+   [
+    "to",
+    0.0244
+   ],
+   [
+    "and",
+    0.023
+   ],
+   [
+    "-",
+    0.0227
+   ],
+   [
+    "of",
+    0.0204
+   ],
+   [
+    "a",
+    0.0202
+   ],
+   [
+    "in",
+    0.0194
+   ]
+  ]
+ },
+ "lm1b_tied_struct_K12": {
+  "unigram_entropy": 4.110387239139527,
+  "distinct1": 0.6123809814453125,
+  "distinct2": 0.9470349409448818,
+  "repeated_bigram_rate": 0.05296505905511812,
+  "top10_token_share": 0.319580078125,
+  "samples": [
+   "[CLS] administration from a deal with by six countries, it such as t about the united states, with the international commission. [CLS] it says no won at it. [CLS] but for ' t or not that will be more. [CLS] but he is made like line people - - they will not, have to show and, in a race that from by a just from running to be less. whether it is a notly only age four and since there are three years. [CLS] others to find more than one - are also to buy because of the home, - baseded their control. [CLS] washington,, who change that the family is down [CLS]",
+   "[CLS]s that will come up for \" a world. \" [CLS] whether the country ' s play this week. [CLS] \" i think this week, \" said the last year as to became a private show against her. [CLS] the old he would have to say \" energy is like his no past, \" man of the time. [CLS] a year he will be at 7 - 4, left after late per win - through the next year - to risk the hit for the 5s in the next season, and that in the fourth quarter. [CLS] i have been very my - - - think as you not believe it is not to be in [CLS]",
+   "[CLS] to get the us council or a ( management ) as of whether she ' s not in charge should \" be, and to look at it, \" he wrote. [CLS] \" at this time, more so but not, they are at the top : i do his own and was still doing this as well as her way home on two hours of us. [CLS] the did not end in up one this year, officials all. [CLS] for two - of those, have said she health care because three has already, with the next year, was black as chairman of the research. [CLS] i ' m be enough, if the. were [CLS]",
+   "[CLS] not be important. [CLS] the most companies - - so big - - found that one of them were four there were so few they became never can ' t have them like like and money, which to the us state of for web, and state do again. [CLS] it will get on the big as well have been with you that other, \" he said. [CLS] \" on the basis of that, it has 100 days, which this do. [CLS] theing will be set in west sussex. [CLS] he want to keep, and the statement were also, which came to he has said earlier this year. [CLS] a years later, [CLS]"
+  ],
+  "top10_tokens": [
+   [
+    "[CLS]",
+    0.0544
+   ],
+   [
+    "the",
+    0.0522
+   ],
+   [
+    ".",
+    0.0466
+   ],
+   [
+    ",",
+    0.0401
+   ],
+   [
+    "to",
+    0.0239
+   ],
+   [
+    "-",
+    0.0224
+   ],
+   [
+    "and",
+    0.022
+   ],
+   [
+    "a",
+    0.0196
+   ],
+   [
+    "of",
+    0.0195
+   ],
+   [
+    "in",
+    0.0188
+   ]
+  ]
+ }
+}
